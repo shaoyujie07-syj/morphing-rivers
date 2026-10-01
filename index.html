@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>River network schematic · monitoring sites</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="css/app.css">
+<!-- D3 放在仓库本地（lib/），不用 CDN：规格 §1 要求离线可用 -->
+<script src="lib/d3.v7.9.0.min.js"></script>
+</head>
+<body>
+<header id="topbar">
+  <div class="grp grp-basin">
+    <div class="basin-line">
+      <span id="basin-name">—</span>
+      <select id="basin-select" aria-label="Basin">
+        <option value="goulburn">Goulburn</option>
+        <option value="yarra">Yarra</option>
+        <option value="campaspe">Campaspe</option>
+        <option value="werribee">Werribee</option>
+      </select>
+    </div>
+    <div class="subtitle" id="subtitle"></div>
+  </div>
+  <div class="grp grp-view">
+    <button type="button" data-view="schematic" id="btn-schematic"></button>
+    <button type="button" data-view="map" id="btn-map"></button>
+  </div>
+  <!-- 中右：参数（即筛选，D-56 只剩参数类型）、时间范围，同一底色表示同类（D-52）；M3 接入，M2 为占位 -->
+  <div class="grp grp-filters">
+    <label class="ctl"><span id="lbl-param"></span><select id="param-select" disabled></select></label>
+    <label class="ctl"><span id="lbl-range"></span><button type="button" id="range-btn" disabled></button></label>
+  </div>
+  <!-- 右：搜索（「可以」档，M4 可选项），M2 为占位 -->
+  <div class="grp grp-search"><input id="search" type="search" disabled></div>
+</header>
+<main>
+  <div id="canvas"><svg id="svg" xmlns="http://www.w3.org/2000/svg"></svg><div id="minimap"></div></div>
+  <aside id="sidebar">
+    <div class="sb-title" id="sb-title"></div>
+    <div class="sb-main" id="sb-main"></div>
+    <!-- 数据来源与取舍（D-39，可展开）：M4 T-14；小地图在验收修订（10-01）中移到画布角落 -->
+    <div id="sources"></div>
+  </aside>
+</main>
+<script src="js/i18n.js"></script>
+<script src="js/app.js"></script>
+<script src="js/interact.js"></script>
+<script src="js/ts.js"></script>
+<script src="js/stack.js"></script>
+<script src="js/legend.js"></script>
+<script src="js/minimap.js"></script>
+<script src="js/sources.js"></script>
+<script src="js/search.js"></script>
+<script src="js/deco.js"></script>
+<!-- 论文插图（只在 ?figure=1 时运行） -->
+<script src="js/figure.js"></script>
+<!-- 自检（只在 ?audit=1 时运行） -->
+<script src="js/audit.js"></script>
+</body>
+</html>

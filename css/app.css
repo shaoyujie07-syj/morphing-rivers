@@ -1,0 +1,422 @@
+/* 颜色角色（impl-spec §4.1，D-48；初版，可在评审后调整） */
+:root {
+  --river: #4A6E8A;
+  --stub: #8BA3B6;           /* 存根：河网角色内浅一档的灰蓝（作者 09-24），不降不透明度 */
+  --node: #3B3B38;
+  --interact: #0072B2;
+  --warn: #D55E00;
+  --fac-storage: #F0E442;
+  --fac-weir: #FAF3B8;
+  --fac-stroke: #8A7A1E;
+  --mark: #E69F00;
+  --neutral: #B0AFA8;
+  --neutral-light: #D9D8D2;
+  --water: #CFE3F0;
+  --water-edge: #9FC4DC;     /* 水面描边：地理背景角色内深一档，让细长库汊在 1 倍下也看得见 */
+  --bg-river: #C4C3BC;
+  --outline: #A9A8A1;
+  --land: #FAFAF7;
+  --text: #2B2B28;
+  --text-2: #6B6A64;
+  --topbar-h: 50px;
+  --sidebar-w: 420px;          /* D-52：固定宽度；验收修订 10-01 由 400 改为 420，站名不截断 */
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #fff; color: var(--text);
+  font: 12px/1.4 "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif; }
+body { display: flex; flex-direction: column; overflow: hidden; }
+
+#topbar { height: var(--topbar-h); flex: none; display: flex; align-items: center; gap: 24px;
+  padding: 0 16px; border-bottom: 1px solid var(--neutral-light); }
+.grp { display: flex; align-items: center; gap: 6px; }
+.grp-basin { flex-direction: column; align-items: flex-start; gap: 0; min-width: 260px; }
+.basin-line { display: flex; align-items: center; gap: 8px; }
+#basin-name { font-size: 15px; font-weight: 600; }
+#basin-select { font: inherit; border: 1px solid var(--neutral-light); border-radius: 3px; padding: 1px 4px;
+  background: #fff; color: var(--text); }
+.subtitle { font-size: 10px; color: var(--text-2); }
+.grp-view button { font: inherit; font-size: 12px; padding: 5px 14px; border: 1px solid var(--interact);
+  background: #fff; color: var(--interact); border-radius: 3px; cursor: pointer; }
+.grp-view button.on { background: var(--interact); color: #fff; }
+.grp-view button:disabled { cursor: default; opacity: .6; }
+
+main { flex: 1; display: flex; min-height: 0; }
+#canvas { flex: 1; position: relative; min-width: 0; background: #fff; }
+#svg { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+#svg.busy { pointer-events: none; }
+#sidebar { width: var(--sidebar-w); flex: none; border-left: 1px solid var(--neutral-light);
+  display: flex; flex-direction: column; overflow-y: auto; padding: 16px 12px; }
+.sb-title { font-size: 13px; font-weight: 600; margin-bottom: 8px; }
+.sb-main p { margin: 0 0 8px; }
+.sb-main .muted { color: var(--text-2); font-size: 10px; }
+
+/* 画布元素 */
+.bg-outline { fill: var(--land); stroke: var(--outline); stroke-width: 1; }
+.bg-river { fill: none; stroke: var(--bg-river); stroke-linecap: round; stroke-linejoin: round; }
+.bg-water { fill: var(--water); stroke: var(--water-edge); stroke-width: 0.8; stroke-linejoin: round; }
+.piece { fill: none; stroke: var(--river); stroke-linecap: round; stroke-linejoin: round; }
+.stub-body { fill: var(--stub); stroke: none; }   /* 存根：削角的实心条（作者 10-01，取代线加小箭头） */
+.stub-flag { fill: var(--mark); }
+.outlet-mark { fill: var(--river); }
+.fac-storage { fill: var(--fac-storage); stroke: var(--fac-stroke); stroke-width: 1; stroke-linejoin: round; }
+.fac-weir { fill: var(--fac-weir); stroke: var(--fac-stroke); stroke-width: 1; stroke-linejoin: round; }
+.st-halo { fill: #fff; }
+.st-wq { fill: var(--node); }
+.st-flow { fill: #fff; stroke: var(--node); stroke-width: 1.5; }
+.flow-arrow { fill: none; stroke: var(--river); stroke-width: 1.3; stroke-linecap: round; stroke-linejoin: round; }
+.river-label { font-size: 11px; fill: var(--river); }
+.end-label { font-size: 12px; fill: var(--text-2); }
+.map-label { font-size: 11px; fill: #555; paint-order: stroke; stroke: #fff; stroke-width: 3px;
+  stroke-linejoin: round; }
+.map-label.reservoir { font-style: italic; fill: #3c6f93; }
+
+
+/* ================================================================ M2（T-09、T-10、T-11）
+ * 视觉约定（作者 09-24，M2 起遵守；字阶、间距、控件样式在 M4 统一）：
+ *   字号只用两级：正文 --fs-body、辅助说明 --fs-aux，差距要明显；
+ *   区块之间用一条浅色分隔线分组，不靠空行；列表里的数值右对齐；内容与容器边缘留内边距。
+ * 适用于侧边栏、悬停提示、图例；顶部栏与画布标注沿用 M1（M4 统一）。 */
+:root { --fs-body: 13px; --fs-aux: 11px; --line: var(--neutral-light); }
+
+/* 侧边栏（覆盖 M1 的骨架样式） */
+#sidebar { padding: 16px 16px 0; font-size: var(--fs-body); overflow: hidden; display: flex; flex-direction: column; }
+/* M4：主区域在内部滚动；小地图固定在底部（D-35）；数据来源与取舍在最下，可展开（D-39） */
+.sb-main { flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-gutter: stable; }
+.sb-title { font-size: var(--fs-body); font-weight: 600; margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.sb-main p { margin: 0 0 6px; }
+.sb-main .muted, .sb-main .aux, .aux { color: var(--text-2); font-size: var(--fs-aux); }
+.blk + .blk { border-top: 1px solid var(--line); margin-top: 12px; padding-top: 12px; }
+.blk > .card { margin-bottom: 0; }
+
+/* 高亮、光晕、悬停提示（交互色专用，§4.1） */
+.hl-line { fill: none; stroke: var(--interact); stroke-linecap: round; stroke-linejoin: round; pointer-events: none; }
+.hl-hover { opacity: .5; }
+.hl-sel { opacity: 1; }
+.halo-c { fill: var(--interact); pointer-events: none; }
+.layer-hl, .layer-halo, .layer-rings { pointer-events: none; }
+.ring { fill: none; stroke: var(--interact); pointer-events: none; }
+.tip { position: absolute; z-index: 20; max-width: 320px; padding: 8px 12px; background: #fff; color: var(--text);
+  border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,.12);
+  font-size: var(--fs-body); line-height: 1.45; pointer-events: none; }
+.tip .tt-id, .tip .tt-sub, .tip .tt-note, .tip .tt-flag { color: var(--text-2); font-size: var(--fs-aux); }
+.tip .tt-note { margin-top: 3px; }
+.tip .tt-flag::before { content: ''; display: inline-block; width: 7px; height: 7px; background: var(--mark);
+  margin-right: 4px; vertical-align: 0; }
+
+/* 卡片栈（§7.1–§7.4；宽度核算见 §7：内边距 + 站号与短名 90 + 删除 20 + 曲线区） */
+.stack { display: flex; flex-direction: column; }
+.card { border: 1px solid var(--line); border-radius: 4px; padding: 12px 14px; margin: 0 0 8px; background: #fff; }
+.card.exp { border-color: var(--interact); }
+.card.temp { border: 1px dashed var(--fac-stroke); }
+.card > * + * { margin-top: 8px; }
+.c-title { display: flex; align-items: baseline; gap: 6px; }
+.card.exp .c-title { cursor: pointer; }
+.c-id { font-weight: 600; flex: none; }
+/* 验收修订 10-01：站名优先完整显示（不被参数标签挤掉），太长才截断、悬停看全名；放不下的参数标签收进「+n」 */
+.c-name { flex: 0 0 auto; max-width: 62%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.c-tags { flex: 1 1 auto; display: flex; gap: 3px; justify-content: flex-start; flex-wrap: nowrap; overflow: hidden; min-width: 0; }
+.tag { font-size: var(--fs-aux); line-height: 15px; padding: 0 5px; border-radius: 8px; background: #EEF2F5; color: var(--text-2); white-space: nowrap; }
+.c-type, .c-tag { font-size: var(--fs-aux); color: var(--text-2); }
+.c-tag { border: 1px dashed var(--fac-stroke); border-radius: 8px; padding: 0 6px; }
+.x { flex: none; margin-left: auto; width: 20px; height: 20px; border: 0; background: none; color: var(--text-2);
+  font-size: var(--fs-body); line-height: 18px; cursor: pointer; padding: 0; }
+.x:hover { color: var(--text); }
+.c-sum { line-height: 18px; }
+.c-data { height: 80px; border: 1px dashed var(--line); border-radius: 3px; color: var(--neutral); font-size: var(--fs-aux);
+  display: flex; align-items: center; justify-content: center; text-align: center; padding: 0 8px; }
+.c-data.small { height: 40px; }
+.c-net { display: grid; grid-template-columns: auto auto 1fr auto; align-items: end; column-gap: 16px;
+  border-top: 1px solid var(--line); padding-top: 8px; }
+.c-net .cell { display: flex; flex-direction: column; min-width: 0; }
+.c-net .cell:nth-child(3) { text-align: right; }
+.c-net .lab { font-size: var(--fs-aux); color: var(--text-2); white-space: nowrap; }
+.c-net .val { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.fold-btn { margin-left: auto; border: 0; background: none; cursor: pointer; color: var(--text-2); font-size: var(--fs-aux);
+  transition: transform .15s; padding: 0 2px 2px; }
+.fold-btn.open { transform: rotate(180deg); }
+.c-warn { font-size: var(--fs-aux); color: var(--text-2); padding-left: 8px; border-left: 2px solid var(--mark); }
+.mi { width: 13px; height: 13px; border-radius: 50%; border: 1px solid var(--neutral); background: #fff; color: var(--text-2);
+  font: italic 600 9px/11px Georgia, serif; padding: 0; cursor: pointer; vertical-align: 1px; }
+.method { font-size: var(--fs-aux); color: var(--text-2); background: #F6F6F3; border-radius: 3px; padding: 8px 10px; }
+.method p { margin: 3px 0 0; }
+.fold { border-top: 1px solid var(--line); }
+.fsec { padding: 8px 0 0 8px; border-left: 2px solid transparent; }
+.fsec + .fsec { border-top: 1px solid var(--line); margin-top: 8px; }
+.fsec.focus { border-left-color: var(--interact); }
+.fh { font-size: var(--fs-aux); color: var(--text-2); margin-bottom: 3px; }
+.kvh { display: flex; justify-content: space-between; gap: 8px; }
+.klist { margin: 0; padding: 0; list-style: none; }
+.kv { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; padding: 1px 2px; border-radius: 2px; }
+.kv .k { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kv .v, .kvh .v { flex: none; text-align: right; font-variant-numeric: tabular-nums; }
+.kv.aux { color: var(--text-2); font-size: var(--fs-aux); }
+.kv.focus { color: var(--interact); font-weight: 600; }
+.hv { cursor: default; }
+.hv:hover { background: #EEF5FA; }
+.flag { display: inline-block; width: 6px; height: 6px; background: var(--mark); vertical-align: 1px; }
+.c-nav { display: flex; gap: 8px; border-top: 1px solid var(--line); padding-top: 10px; }
+.c-nav button, .stack-foot button, .notice button:not(.link), .tabs button { font: inherit; font-size: var(--fs-aux); padding: 3px 10px;
+  border: 1px solid var(--interact); color: var(--interact); background: #fff; border-radius: 3px; cursor: pointer; }
+.c-nav button:hover, .stack-foot button:hover { background: #EEF5FA; }
+.row { display: grid; grid-template-columns: 90px 1fr 20px; align-items: center; gap: 4px; height: 45px;
+  border: 1px solid var(--line); border-radius: 4px; padding: 0 2px 0 8px; margin: 0 0 8px; cursor: pointer; background: #fff; }
+.row.nots { height: 28px; }
+.row:hover { border-color: var(--interact); }
+.row.linked, .card.exp.linked { background: #EEF5FA; }   /* 画布与小地图上悬停到的站（作者 10-01） */
+.r-name { display: flex; flex-direction: column; min-width: 0; line-height: 15px; }
+.r-name b { font-weight: 600; }
+.r-name span { font-size: var(--fs-aux); color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row.nots .r-name { flex-direction: row; gap: 6px; align-items: baseline; }
+.r-spark { height: 28px; border-bottom: 1px dashed var(--line); color: var(--neutral); font-size: var(--fs-aux);
+  display: flex; align-items: flex-end; padding-bottom: 2px; min-width: 0; overflow: hidden; white-space: nowrap; }
+.r-spark.none { border: 0; }
+.info { height: 30px; margin: -4px 0 4px; padding: 0 4px 0 18px; font-size: var(--fs-aux); color: var(--text-2);
+  display: flex; align-items: center; position: relative; }
+.info::before { content: ''; position: absolute; left: 8px; top: 2px; bottom: 2px; border-left: 1px solid var(--neutral); }
+.info span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 分界行（作者 10-01）：与信息行同形——同样高度、同样位置的左侧竖线，竖线断成两截，表示「这里断开了」 */
+.brk { height: 30px; margin: -4px 0 4px; padding: 0 4px 0 18px; font-size: var(--fs-aux); color: var(--text-2);
+  display: flex; align-items: center; position: relative; }
+.brk::before, .brk::after { content: ''; position: absolute; left: 8px; height: 7px; border-left: 1px solid var(--neutral); }
+.brk::before { top: 2px; }
+.brk::after { bottom: 2px; }
+.brk span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 两端标签压住线时加白色描边（作者 10-01：标签贴着干流端点，端点附近被挡时允许压线） */
+.end-label.over-line { paint-order: stroke; stroke: #fff; stroke-width: 4px; stroke-linejoin: round; }
+/* 勾选框用交互色（作者 10-01；原为浏览器默认蓝 #0075FF）：折叠区「其他参数」与图例的汇流比例开关 */
+input[type=checkbox] { accent-color: var(--interact); }
+.stack-foot { display: flex; justify-content: flex-end; margin-top: 4px; }
+.notice, .undo { font-size: var(--fs-aux); padding: 8px 10px; border-radius: 3px; margin-bottom: 8px; background: #F6F6F3; }
+.link { border: 0; background: none; color: var(--interact); cursor: pointer; font: inherit; padding: 0; text-decoration: underline; }
+.tabs { display: flex; gap: 4px; }
+.tabs button.on { background: var(--interact); color: #fff; }
+.slist .kv { cursor: pointer; }
+.c-link { color: var(--interact); cursor: pointer; font-size: var(--fs-aux); }
+.flash { animation: flash 1.2s ease-out; }
+@keyframes flash { from { background: #CFE6F5; } to { background: #fff; } }
+
+/* 空栈（§7.5）：概况 → 操作提示（三行小字、不编号）→ 覆盖率细节 */
+.e-count { line-height: 18px; }
+.tips { font-size: var(--fs-aux); color: var(--text-2); line-height: 17px; }
+.cov-h { border: 0; background: none; padding: 0; font: inherit; font-size: var(--fs-aux); color: var(--text-2); cursor: pointer; text-align: left; }
+.cov .klist { margin-top: 6px; }
+
+/* 顶部栏占位（§8；D-52：中右一组同一底色表示同类）——控件样式在 M4 统一 */
+.grp-filters { background: #EAF2F8; border-radius: 4px; padding: 4px 8px; gap: 12px; }
+.grp-filters .ctl { display: flex; align-items: center; gap: 4px; font-size: 11px; color: var(--text-2); }
+.grp-filters select, .grp-filters button { font: inherit; font-size: 11px; border: 1px solid var(--line);
+  border-radius: 3px; background: #fff; color: var(--text); padding: 1px 6px; }
+.grp-filters :disabled { color: var(--neutral); cursor: not-allowed; }
+.grp-search { margin-left: auto; }
+.grp-search input { font: inherit; font-size: 11px; width: 190px; border: 1px solid var(--line);
+  border-radius: 3px; padding: 3px 6px; }
+.grp-search input:disabled { background: #FAFAF7; cursor: not-allowed; }
+
+/* 图例（§8）：两级字号——标题正文一级，其余辅助一级 */
+.legend { position: absolute; z-index: 10; font-size: var(--fs-aux); color: var(--text); }
+.legend.open { width: 236px; background: rgba(255,255,255,.88); border: 1px solid var(--line);
+  border-radius: 4px; padding: 10px 12px; box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.lg-tag { font: inherit; font-size: var(--fs-aux); padding: 4px 12px; border: 1px solid var(--line); border-radius: 12px;
+  background: rgba(255,255,255,.92); color: var(--text); cursor: pointer; }
+.lg-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; font-size: var(--fs-body); }
+.lg-close, .lg-more { border: 0; background: none; color: var(--interact); cursor: pointer; font: inherit; font-size: var(--fs-aux); padding: 0; }
+.lg-more { margin-top: 6px; }
+.lg-item { display: flex; align-items: center; gap: 6px; margin: 5px 0; line-height: 14px; }
+.lg-sym { flex: none; overflow: visible; }
+.lg-river { display: block; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 5px 0; }
+.lg-rtitle { margin-bottom: 3px; color: var(--text-2); }
+.lg-w { display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+.lg-morebox { border-top: 1px solid var(--line); margin-top: 6px; padding-top: 2px; }
+
+/* M3 时间序列（§9；D-46、D-47、D-48）：曲线区 227 px，与折叠行、栈底刻度左右对齐 */
+.row { grid-template-columns: 90px 247px 20px; }   /* 曲线区 247 px（侧边栏 420，验收修订 10-01） */
+.c-chart { margin-left: 0; }
+.ts-svg { display: block; overflow: visible; }
+.ts-bg { fill: #FAFAF7; }
+.ts-base { stroke: #E4E3DD; stroke-width: 1; shape-rendering: crispEdges; pointer-events: none; }   /* 图表区底边（作者 10-01）：只起对齐作用，不是零线 */
+.ts-gap { fill: var(--neutral-light); opacity: .6; }
+.ts-line { fill: none; stroke-linejoin: round; stroke-linecap: round; }
+.ts-rain { fill: #A8C8DE; }
+.ts-lab { font-size: var(--fs-aux); fill: var(--text); }
+.ts-rng { font-size: 10px; fill: var(--text-2); }
+.ts-empty { font-size: var(--fs-aux); fill: var(--neutral); }
+.ts-brush { fill: var(--interact); opacity: .15; pointer-events: none; }
+.ts-axis text { font-size: 10px; fill: var(--text-2); }
+.ts-axis path, .ts-axis line { stroke: var(--neutral); }
+.c-meth { margin-top: 4px; }
+.r-spark.loading { border: 0; }
+.row.dim { opacity: .45; }
+.stack-note { margin-bottom: 8px; }
+.stack-foot { justify-content: flex-end; }
+.t-axis { margin-left: 103px; }
+.chks { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--fs-aux); }
+.chks input { vertical-align: -2px; margin: 0 2px 0 0; }
+.more-chart { margin-top: 6px; }
+.c-level { margin-top: 8px; }
+.grp-filters button .rr { color: var(--interact); text-decoration: underline; }
+.grp-filters { position: relative; }
+.range-menu { position: absolute; top: 100%; left: 0; margin-top: 4px; z-index: 30; background: #fff; border: 1px solid var(--line);
+  border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,.12); padding: 4px; min-width: 200px; }
+.range-menu button { display: block; width: 100%; text-align: left; font: inherit; font-size: 11px; border: 0; background: none;
+  padding: 4px 8px; cursor: pointer; border-radius: 3px; }
+.range-menu button:hover { background: #EEF5FA; }
+.range-menu button.on { color: var(--interact); font-weight: 600; }
+.rm-note { font-size: 10px; color: var(--text-2); padding: 4px 8px 2px; border-top: 1px solid var(--line); margin-top: 2px; }
+.ts-tip { z-index: 50; }
+
+/* M4 T-12 小地图、T-14 数据来源与取舍 */
+/* 小地图在画布角落（验收修订 10-01，原在侧边栏底部）：半透明底、与图例同一套换角落规则；不可点选、可悬停联动 */
+#minimap { position: absolute; z-index: 9; background: rgba(255, 255, 255, .92); border: 1px solid var(--line);
+  border-radius: var(--r, 4px); padding: 4px; box-shadow: 0 1px 3px rgba(0, 0, 0, .08); }
+.mm-hl-line { fill: none; stroke: var(--interact); stroke-linecap: round; stroke-linejoin: round; }
+/* 小地图的三种状态（作者 10-01）：实心 = 卡片栈，空心 = 临时，悬停另加光晕；普通站有栈或高亮时淡成浅灰 */
+.mm-hl-line.hov, .mm-hl-water.hov { opacity: .5; }
+.mm-hl-halo { fill: var(--interact); opacity: .25; }
+.mm-hl-edge { fill: #fff; }
+.mm-stack-pt { fill: var(--interact); }
+.mm-tmp-pt { fill: #fff; stroke: var(--interact); stroke-width: 1.2; }
+.mm { display: block; }
+.mm-outline { fill: var(--land); stroke: var(--outline); stroke-width: .8; }
+.mm-water { fill: var(--water); stroke: none; }
+.mm-river { fill: none; stroke: var(--river); stroke-linecap: round; stroke-linejoin: round; opacity: .85; }
+.mm-fac { fill: var(--fac-storage); stroke: var(--fac-stroke); stroke-width: .5; }
+.mm-fac.weir { fill: var(--fac-weir); }
+.mm-st circle { fill: var(--node); }
+.mm-st circle.dim { fill: var(--bg-river); }
+.mm-frame { fill: var(--interact); fill-opacity: .06; stroke: var(--interact); stroke-width: 1.2; stroke-dasharray: 3 2; }
+#sources { flex: none; border-top: 1px solid var(--line); max-height: 45vh; overflow-y: auto; scrollbar-width: thin; padding: 6px 0 10px; }
+.src-h { width: 100%; text-align: left; border: 0; background: none; padding: 2px 0; font: inherit; font-size: var(--fs-aux);
+  font-weight: 600; color: var(--text); cursor: pointer; }
+.src-h .aux { font-weight: 400; }
+.src-body { padding-top: 6px; font-size: var(--fs-aux); }
+.src-body .blk + .blk { margin-top: 8px; padding-top: 8px; }
+.src-body p { margin: 0 0 4px; }
+.src-list { max-height: 180px; overflow-y: auto; }
+.mlist { margin: 0; padding-left: 14px; }
+.mlist li { margin: 2px 0; }
+.mlist .method { margin: 4px 0 6px; }
+/* T-14：强制标注（栈内站所在支流，交互色）；行间信息行的区间降雨小柱（与曲线区对齐） */
+.river-label.forced { fill: var(--interact); font-weight: 600; }
+.info.with-rain { flex-direction: column; align-items: stretch; justify-content: center; gap: 2px; }
+.info.with-rain > span { display: block; }
+.info-rain { margin-left: 85px; height: 11px; }
+/* 可以档：汇流比例符号、搜索、比例尺与指北针 */
+.ratio circle, .ratio-c { fill: #fff; stroke: var(--river); stroke-width: 1; }
+.ratio path, .ratio-p { fill: var(--river); }
+.layer-ratio { pointer-events: none; }
+.lg-toggle { display: flex; align-items: center; gap: 6px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line); cursor: pointer; }
+.lg-toggle input { margin: 0; }
+.grp-search { position: relative; }
+.search-list { position: absolute; top: 100%; right: 0; margin-top: 4px; z-index: 30; width: 260px; background: #fff;
+  border: 1px solid var(--line); border-radius: 4px; box-shadow: 0 2px 6px rgba(0,0,0,.12); padding: 4px; }
+.search-list button { display: block; width: 100%; text-align: left; font: inherit; font-size: var(--fs-aux); border: 0; background: none;
+  padding: 4px 8px; cursor: pointer; border-radius: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.search-list button:hover { background: #EEF5FA; }
+.search-list .aux { padding: 4px 8px; }
+#mapdeco { position: absolute; top: 8px; right: 12px; z-index: 5; pointer-events: none; text-align: right; }
+.deco-svg { display: block; margin-left: auto; overflow: visible; }
+.deco-svg text { font-size: 10px; fill: var(--text-2); }
+.deco-n { fill: var(--text-2); }
+.deco-bar { fill: #fff; stroke: var(--text-2); stroke-width: .8; }
+.deco-bar2 { fill: var(--text-2); }
+.deco-attr { font-size: 10px; color: var(--text-2); margin-top: 2px; background: rgba(255,255,255,.8); padding: 0 2px; }
+
+/* ================================================================ M4 视觉统一（作者 09-24：字体与字阶、间距体系、控件样式）
+ * 字阶：全界面只有两级——正文 13（--fs-body）、辅助 11（--fs-aux）；强调靠字重与颜色，不靠第三种字号。
+ * 间距：4 px 网格（--sp-1 … --sp-6）。控件：两种高度（顶部栏 28、面板内 24），圆角 4；
+ * 标签为 16 px 高的胶囊；「临时」一律用同一种虚线（--dash）。 */
+:root { --sp-1: 4px; --sp-2: 8px; --sp-3: 12px; --sp-4: 16px; --sp-6: 24px; --r: 4px; --h-ctl-l: 28px; --h-ctl: 24px;
+  --dash: 1px dashed var(--fac-stroke); }
+html, body { font-size: var(--fs-body); }
+#topbar { gap: var(--sp-6); padding: 0 var(--sp-4); }
+#basin-name { font-size: var(--fs-body); font-weight: 600; }
+.subtitle { font-size: var(--fs-aux); }
+#basin-select, .grp-filters select, .grp-filters button, .grp-search input {
+  height: var(--h-ctl); font-size: var(--fs-aux); border: 1px solid var(--line); border-radius: var(--r); padding: 0 var(--sp-2);
+  background: #fff; color: var(--text); }
+.grp-view button { height: var(--h-ctl-l); font-size: var(--fs-body); padding: 0 var(--sp-4); border-radius: var(--r); }
+.grp-filters { padding: var(--sp-1) var(--sp-2); gap: var(--sp-3); border-radius: var(--r); }
+.grp-filters .ctl { font-size: var(--fs-aux); gap: var(--sp-1); }
+.end-label { font-size: var(--fs-body); font-weight: 600; fill: var(--text); }   /* 两端标签加粗、比河名大一档；不带箭头（作者 10-01） */
+.card { padding: var(--sp-3); border-radius: var(--r); margin-bottom: var(--sp-2); }
+.card.temp, .c-tag { border: var(--dash); }
+.card > * + * { margin-top: var(--sp-2); }
+.tag, .c-tag { height: 16px; line-height: 14px; padding: 0 6px; border-radius: 8px; font-size: var(--fs-aux); }
+.c-nav button, .stack-foot button, .notice button:not(.link), .tabs button {
+  height: var(--h-ctl); padding: 0 var(--sp-3); border-radius: var(--r); font-size: var(--fs-aux); }
+.row { border-radius: var(--r); margin-bottom: var(--sp-2); }
+.r-spark { border-bottom: 0; }
+.notice, .undo { padding: var(--sp-2) var(--sp-3); border-radius: var(--r); margin-bottom: var(--sp-2); }
+.legend.open { padding: var(--sp-3); border-radius: var(--r); }
+.lg-tag { height: var(--h-ctl); padding: 0 var(--sp-3); font-size: var(--fs-aux); }
+.tip { padding: var(--sp-2) var(--sp-3); border-radius: var(--r); }
+.method { padding: var(--sp-2) var(--sp-3); border-radius: var(--r); }
+.blk + .blk { margin-top: var(--sp-3); padding-top: var(--sp-3); }
+/* 字阶收紧：图表量程与刻度、比例尺、署名、菜单说明也用辅助字号（原 10 px） */
+.ts-rng, .ts-axis text, .deco-svg text, .deco-attr, .rm-note, .tip .tt-sub, .tip .tt-note, .tip .tt-flag, .tip .tt-id { font-size: var(--fs-aux); }
+/* T-17 插图模式：只留画布，固定 1300 × 900 */
+body.figure #topbar, body.figure #sidebar, body.figure #legend, body.figure #mapdeco, body.figure #tooltip, body.figure #minimap { display: none !important; }
+body.figure #canvas { flex: none; width: 1280px; height: 900px; }
+body.figure main { flex: none; }
+.fig-title { font-size: var(--fs-body); font-weight: 600; fill: var(--text); }
+.fig-sub, .fig-deco text, .fig-attr { font-size: var(--fs-aux); fill: var(--text-2); }
+body.figure #svgout { display: none; }
+/* 图例收紧（M4）：「更多符号」两列，开关一行，使展开态在各流域都有不压线的角落 */
+.lg-morebox { display: grid; grid-template-columns: 1fr 1fr; column-gap: var(--sp-2); }
+/* 监测站三种状态并排（作者 10-01）；存根下的说明用辅助色 */
+.lg-item.lg-st { display: block; }
+.lg-st3 { display: grid; grid-template-columns: repeat(3, auto); justify-content: space-between; column-gap: var(--sp-1); }   /* 按内容定宽，中文三项一行放得下 */
+.lg-sc { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 2px; }
+.lg-stub > span { display: flex; flex-direction: column; }
+.lg-note { color: var(--text-2); }
+.lg-morebox .lg-item { margin: 3px 0; }
+.lg-item { margin: 4px 0; }
+.lg-item { margin: 3px 0; }
+.lg-head { margin-bottom: 4px; }
+.lg-river { padding: 4px 0; }
+.lg-more { margin-top: 4px; }
+.lg-toggle { margin-top: 4px; padding-top: 4px; }
+
+/* ------------------------------------------------------------------ M3+M4 增补（作者 09-30） */
+/* 淡显的站：不透明的浅灰实心 + 白边（白边即站点原有的白色描边），不用透明度——压在 9.5 px 干流上不会糊掉 */
+:root { --faded: #B0AFA8; --exceed: #F4C0D1; }
+.faded .st-wq, .faded .st-flow { fill: var(--faded); stroke: none; }
+/* ERS 目标：红虚线（警示色）+ 超标区浅粉；折叠行的线细一些 */
+.ts-ers { stroke: var(--warn); stroke-width: 1.2; stroke-dasharray: 4 2; }
+.ts-ers.thin { stroke-width: 1; stroke-dasharray: 3 2; }
+.ts-exceed { fill: var(--exceed); opacity: .3; }
+.ts-ers-lab { font-size: var(--fs-aux); fill: var(--warn); }
+.c-ers { margin-top: 2px; display: flex; align-items: center; gap: 4px; }
+.c-ers-t { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.c-ers.line { color: var(--text-2); }
+.c-ers.none { color: var(--text-2); }
+/* 采样方式压成一行（侧边栏高度 (c)） */
+.c-meth { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 地图城镇（地理背景角色，不可交互） */
+.town-dot { fill: #8A8984; stroke: #fff; stroke-width: 1; }
+.town-label { font-size: 11px; fill: #6B6A64; paint-order: stroke; stroke: #fff; stroke-width: 3px; stroke-linejoin: round; }
+.layer-towns { pointer-events: none; }
+/* 网络位置一行默认折叠成一行小字（作者 09-30，侧边栏高度）；点整行展开 */
+.c-net.closed { display: flex; align-items: center; padding-top: 4px; cursor: pointer; }
+.c-net.closed .lab { flex: 1; }
+
+/* ------------------------------------------------------------------ 验收修订（10-01） */
+/* 粗线（≥ 5.5 px）上的流向 V 形用白色：同色箭头在 9.5 px 干流上看不见；白色在本体系里只承担「挖空、分隔」 */
+.flow-arrow.on-thick { stroke: #fff; }
+/* 选中圆环外加一圈白边（粗环细环都加），交互蓝画在深蓝干流上也看得清 */
+.ring-halo { fill: none; stroke: #fff; }
+/* 时间范围：自定义日期、水文年（作者 10-01 删去前后移动箭头） */
+.range-menu .rm-sec { border-top: 1px solid var(--line); margin-top: 4px; padding: 6px 8px 2px; font-size: 11px; color: var(--text-2); }
+.range-menu .rm-row { display: flex; gap: 4px; align-items: center; padding: 2px 8px; font-size: 11px; }
+.range-menu input[type=date], .range-menu select { font: inherit; font-size: 11px; border: 1px solid var(--line); border-radius: 3px; height: 22px; }
+.range-menu .rm-row button { width: auto; display: inline-block; border: 1px solid var(--line); border-radius: 3px; padding: 0 6px; }
+.range-menu > button { border: 0 !important; border-radius: 0; }
+/* 小地图高亮（作者 10-01：扩展到全部可见元素）：线 3 px、水库水面半透明交互蓝 */
+.mm-hl-water { fill: var(--interact); fill-opacity: .35; stroke: var(--interact); stroke-width: 1.2; stroke-linejoin: round; }
+/* 稀疏站「展开到五年」（作者 10-01）：卡片数据区里紧跟图表的一行 */
+/* 稀疏站的提示叠在卡片图表的参数层上（作者 10-01 裁决：不另占一行）；只有链接接收点击，其余不挡拖选与悬停 */
+.c-chart { position: relative; }
+.ts-sparse { position: absolute; display: flex; align-items: flex-start; font-size: var(--fs-aux); line-height: 12px; color: var(--text-2);
+  pointer-events: none; overflow: hidden; }
+.ts-sparse span { background: rgba(255, 255, 255, .85); padding: 0 2px; }   /* 目标线、超标区从文字后面过，不穿过文字 */
+.ts-sparse .link { font-size: var(--fs-aux); padding: 0; pointer-events: auto; }

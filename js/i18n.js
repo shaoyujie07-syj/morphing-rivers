@@ -138,7 +138,7 @@
     figSchNote: (o, row, to) => `Schematic, ${o}; main river by true channel distance, tracks ${Math.round(row)} px apart; outlet flows into ${to}`,
     figMapNote: 'Map view, north up, EPSG:3111; line width = schematic width × 0.7',
     topParam: 'Parameter', topRange: 'Time range', topRangeVal: 'Last year', topSearch: 'Search site name or number',
-    topLater: 'Comes with the time series (M3)', topSearchLater: 'Search is an optional feature, not built yet',
+    topLater: 'Loading time series…', topSearchLater: 'Search is an optional feature, not built yet',
   });
 
   // ---------------------------------------------------------------- M3 时间序列、降雨、参数与时间范围

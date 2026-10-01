@@ -556,12 +556,16 @@
   function updateTopbar() {
     d3.select('#btn-schematic').text(T.schematic).classed('on', state.view === 'schematic');
     d3.select('#btn-map').text(T.map).classed('on', state.view === 'map');
-    // 中右与右两组为占位（M2）：参数默认浊度、时间范围默认近一年（D-46）；M3 接入时间序列后启用
+    // 中右与右两组为占位（M2）：参数默认浊度、时间范围默认近一年（D-46）；时间序列就绪后由 ts.js 的 controls() 接管。
+    // 作者 10-01 发现：本函数在每次形变结束都会调用，原先不论就绪与否都写占位——参数下拉被重置成只剩 Turbidity、
+    // 时间范围按钮退回「近一年」（自 09-24 起）。改为只在未就绪时写占位
     d3.select('#lbl-param').text(T.topParam);
-    d3.select('#param-select').attr('title', T.topLater).selectAll('option').data([T.param('turbidity')])
-      .join('option').text(x => x);
     d3.select('#lbl-range').text(T.topRange);
-    d3.select('#range-btn').attr('title', T.topLater).text(T.topRangeVal);
+    if (!(window.River && window.River.ts && window.River.ts.ready)) {
+      d3.select('#param-select').attr('title', T.topLater).selectAll('option').data([T.param('turbidity')])
+        .join('option').text(x => x);
+      d3.select('#range-btn').attr('title', T.topLater).text(T.topRangeVal);
+    }
     d3.select('#search').attr('placeholder', T.topSearch).attr('aria-label', T.topSearch);   // 搜索由 search.js 启用（可以档）
   }
   function updateSidebar() {

@@ -66,7 +66,7 @@
       }).catch(() => { if (S.basin === id) { S.failed = true; S.ready = false; controls(); R.emit('sidebar'); document.body.dataset.ts = 'failed'; } });
     });
   });
-  // 托管版：首屏画出之后再取时间序列与降雨（下载量不变，首屏先出来；真正的点开卡片才取留待以后，牵动 D-47）。
+  // 首屏画出之后再取时间序列与降雨（作者 10-01：下载量不变，首屏先出来；真正的点开卡片才取留待以后，牵动 D-47）。
   // requestAnimationFrame 在后台标签页里不触发，另以 300 ms 兜底
   function afterPaint(fn) {
     let done = false;

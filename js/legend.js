@@ -103,8 +103,10 @@
       ${dflt.join('')}
       <button class="lg-more" data-lg="more">${L.more ? T.lgLess : T.lgMore} ${L.more ? '▴' : '▾'}</button>
       ${L.more ? `<div class="lg-morebox">${more.join('')}</div>` : ''}
+      <div class="lg-toggles">${map ? '' : `<label class="lg-toggle lg-toggle-stubs" title="${T.lgStubToggle || T.lgStub}"><input type="checkbox" data-lg="stubs"${
+        R.state.showStubs !== false ? ' checked' : ''}> ${SYM.stub} ${T.lgStubToggle || T.lgStub}</label>`}
       <label class="lg-toggle" title="${T.lgRatio}"><input type="checkbox" data-lg="ratio"${R.state.showRatio ? ' checked' : ''}> ${
-        sw(16, 16, '<circle class="ratio-c" cx="8" cy="8" r="5.5"/><path class="ratio-p" d="M8,2.5A5.5,5.5 0 0 1 13.2,9.8L8,8Z"/>')} ${T.lgRatioShort}</label>`;
+        sw(16, 16, '<circle class="ratio-c" cx="8" cy="8" r="5.5"/><path class="ratio-p" d="M8,2.5A5.5,5.5 0 0 1 13.2,9.8L8,8Z"/>')} ${T.lgRatioShort}</label></div>`;
   }
 
   function render() {
@@ -297,6 +299,9 @@
     else if (a === 'close') { L.open = false; L.more = false; }
     else if (a === 'more') L.more = !L.more;
     else if (a === 'ratio') { R.state.showRatio = b.checked; R.draw(R.state.frame || R.still(R.state.view)); }
+    // 规划端 10-05：「Tributaries with no monitoring site」开关（只在示意图图例里），默认打开；关闭时示意图不画存根与设施小方块，
+    // 形变时①按③处理（app.js）。状态在两个视图间保持；命中模型随之重建
+    else if (a === 'stubs') { R.state.showStubs = b.checked; R.draw(R.state.frame || R.still(R.state.view)); if (R.rebuildModel) R.rebuildModel(); }
     L.forcedDone = true;
     render();
   });
@@ -311,6 +316,9 @@
     const q = R.Q.get('legend');
     if (q === 'open' || q === 'more') { L.open = true; L.more = q === 'more'; render(); }
     if (R.Q.get('ratio')) { R.state.showRatio = true; R.draw(R.state.frame || R.still(R.state.view)); render(); }   // 调试：&ratio=1
+    if (R.Q.get('stubs') === '0') {                                     // 调试（自检截图）：&stubs=0 关闭「Tributaries with no monitoring site」
+      R.state.showStubs = false; R.draw(R.state.frame || R.still(R.state.view)); if (R.rebuildModel) R.rebuildModel(); render();
+    }
   });
   R.legend = { state: L, render };
 })();

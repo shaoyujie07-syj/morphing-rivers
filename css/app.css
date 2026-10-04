@@ -470,3 +470,7 @@ body.figure #intro { display: none !important; }
 /* 圆环内侧填白（不透明），与外白边同在坝标记之下的 ringWhites 层 */
 .ring-fill { fill: #fff; stroke: none; }
 .layer-stHalos, .layer-ringWhites { pointer-events: none; }
+
+/* 规划端 10-05：图例末尾的两个图层开关（「Tributaries with no monitoring site」只在示意图里）放在同一行，放不下时换行 */
+.lg-toggles { display: flex; flex-wrap: wrap; column-gap: 12px; row-gap: 4px; margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--line); }
+.lg-toggles .lg-toggle { margin: 0; padding: 0; border-top: 0; }

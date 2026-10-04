@@ -137,7 +137,7 @@
     lgOutflow: 'Natural outflow', lgOutlet: 'Outlet', lgFlowDir: 'Flow direction', lgFlag: 'Regulating structure up this tributary',
     lgInStack: 'In the card stack',
     lgMapOutline: 'Catchment boundary', lgMapWater: 'Water body', lgMapBg: 'Other rivers (hover for names)',
-    lgRatio: 'Junction share symbols (wedge = the share of the catchment area below the junction that the tributary comprises)', lgRatioShort: 'Junction share',
+    lgRatio: 'Junction share symbols (wedge = the share of the catchment area below the junction that the tributary comprises)', lgRatioShort: 'Junction share', lgStubToggle: 'Tributaries with no monitoring site',
     lgFlagShort: 'Unmonitored tributary with a dam or weir upstream', searchNone: 'No matching site',
     attribution: 'Geofabric V3.3 © BoM · WMIS © DEECA · SILO © Qld · CC BY 4.0 · Towns: GeoNames, CC BY',
     figTitle: (b, v) => `${b} — ${v}`, figOrientH: 'long axis horizontal', figOrientV: 'long axis vertical',

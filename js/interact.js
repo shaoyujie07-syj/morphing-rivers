@@ -132,6 +132,7 @@
     }
     const riverOwner = new Map();                   // 地图：存根支流（与分流去向）的背景河段 → 存根
     for (const st of d.stubs) {
+      if (!map && !R.stubsOn()) continue;            // 开关关闭：示意图上存根不画，也不可悬停、点选
       const type = st.kind === 'in' ? 'stub' : 'outflow';
       const G = R.stubGeom(st, t);
       if (G.len >= 0.5) lines.push({ type, id: st.id, obj: st, poly: [G.J, G.E] });
@@ -175,6 +176,7 @@
     model = { t, map, pts, lines, labels };
   }
   R.on('layout', buildModel);
+  R.rebuildModel = buildModel;                      // 图例里的存根开关切换后重建命中模型（不发 layout，免得面板重新选位置）
   R.on('labels', buildModel);
   R.model = () => model;
 
@@ -260,9 +262,11 @@
       its.push({ d: R.pathOf(R.piecePts(p, t)), w: R.pieceW(p, t), sel: x.sel });
     }
     for (const x of both('stubs')) {
+      if (!R.stubsOn()) break;                     // 「Tributaries with no monitoring site」关闭：存根不画，也不画它的套边
       const st = idx.stub.get(x.id);
-      const m = R.stubMorph(st, t);                // F9：移动段里存根由整条支流的形变路径代替，套边跟着这条路径走
-      if (m) { its.push({ d: R.scr(m.pts), w: m.w, sel: x.sel }); continue; }
+      // F9（分阶段）：A、B 段里存根由①退向汇入点的路径 / 20 px 短线代替，套边跟着它走；那条线画在 hl 层之下，套边之上再画一遍
+      const m = R.stubShort(st, s.frame);
+      if (m) { its.push({ d: R.scr(m.pts), w: m.w, sel: x.sel, redraw: m }); continue; }
       const G = R.stubGeom(st, t);
       if (G.len < 0.5) continue;
       its.push({ line: [G.J, G.E], w: st.w, sel: x.sel });
@@ -273,8 +277,9 @@
     // 先画全部蓝边，再画全部白隙——逐条画时，相邻两段的蓝边会压住前一段的白隙，在接缝处留下蓝色横线
     const casing = (G, list) => { for (const it of list) draw(G, it, cls(it), it.w + CASE); for (const it of list) draw(G, it, 'hl-gap', it.w + GAP); };
     casing(L, its);
+    for (const it of its) if (it.redraw) L.append('path').attr('class', 'bg-morph').attr('d', it.d).attr('stroke-width', it.w).attr('stroke', it.redraw.col);
     const mapA = s.frame.mapA;
-    if (mapA > 0) {
+    if (mapA > 0 && R.bgA(s.frame) <= 0) {          // 背景河段的套边只在静止的地图上画（A 段起它们开始收拢，套边改由①的路径承担）
       const rv = [];
       for (const x of both('rivers')) {
         const r = idx.river.get(x.id);

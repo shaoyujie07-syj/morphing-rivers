@@ -56,11 +56,12 @@
   //   白色的东西集中到一层（stHalos 站点白边、ringWhites 圆环的外白边与内白底），画在坝标记之下——
   //   顺序为 河网 → 所有白边与白底 → 坝标记 → 环 → 站点（当初不画内白边是怕盖住坝标记，那是图层顺序问题）
   // 作者 10-05（Q-25）：路径高亮改为套边，hl 层移到水面之后、河网之前——F10 的光带画在水面之下，河道穿过水库时被水面接住（Lake Eppalock）
-  // 作者 10-05（F9）：bgMorph 为①⑥在形变中由整条支流变成存根的那条路径，画在河道之上、存根之下（只在移动段出现）
-  for (const k of ['bg', 'bgRivers', 'water', 'hl', 'towns', 'pieces', 'bgMorph', 'stubs', 'ratio', 'outlet', 'halo', 'stHalos', 'ringWhites', 'fac', 'arrows',
+  // 作者 10-05（F9；分阶段）：bgMorph 为①⑥在形变中由整条支流退成 20 px 短线、再转向存根的那条路径；紧接背景河网之后、水面之下
+  //   （A 段与水面淡出同时，路径在湖内与背景河段一样被水面盖住），也在河道之下（B 段短线锚在汇入点，靠河的一端藏在河道下面）
+  for (const k of ['bg', 'bgRivers', 'bgMorph', 'water', 'hl', 'towns', 'pieces', 'stubs', 'ratio', 'outlet', 'halo', 'stHalos', 'ringWhites', 'fac', 'arrows',
     'rings', 'stations', 'labels', 'mapLabels']) layer[k] = root.append('g').attr('class', 'layer-' + k);
 
-  const state = { id: null, d: null, view: Q.get('view') === 'schematic' ? 'schematic' : 'map', busy: false,
+  const state = { id: null, d: null, view: Q.get('view') === 'schematic' ? 'schematic' : 'map', busy: false, showStubs: true,
     fit: { k: 1, ox: 0, oy: 0, cw: W0, ch: H0 }, labels: [] };
 
   // 事件钩子（M2）：build 新流域元素建好；draw 每画一帧之后；layout 静止视图就绪（载入、形变结束、窗口变化）；
@@ -228,49 +229,80 @@
     return { J, E, len, tip, flat, body, rectPath, tipPath, rect };
   }
 
-  // ------------------------------------------------------------ F9：形变中背景河网收向它在示意图上的去处（作者 10-05）
-  // 每段的去处在导出时算好（bg_morph.py，D-13）：to.k = stub（①与流出河道⑥：整条支流按弧长重采样、逐点插值成存根的实心部分，
-  // 路径为 stub.morph_geo，各点在存根上的位置按弧长比例 morph_f）；fork（②：收向它在①路径上的分叉点，该点随①一起移动）；
-  // piece（③④：收向汇入点，汇入点按形变对应点落在某一段上、随该段移动）；site（⑤：收进最上游站，随站移动）；fade（残链：原地淡出）。
-  // 收拢：P_i(t) = T(t) + (1 − t)(p_i − T(0))，T 为去处在 t 时的屏幕位置——t = 0 时恰为原样，t = 1 时缩成一点。
-  // 不透明度：② 在到终点前淡出（t 0.55 → 0.85），③④⑤ 在到达时淡出（t 0.8 → 1）；①⑥ 不透明，颜色由背景灰插值到存根色，
-  // 线宽由地图线宽插值到存根档宽。背景河网不再随地图元素在第三段淡出
+  // ------------------------------------------------------------ F9：形变中背景河网收向它在示意图上的去处（作者 10-05；分阶段，规划端 10-05）
+  // 分阶段（Heer & Robertson 2007：平移与收缩不同时进行，以免干扰形变中跟踪站点，E5）。地图 → 示意图：
+  //   A（与地图元素淡出同时，0.5 s；收缩进度 a = 1 − mapA）：站点与河道不动。①的收缩前沿从支流末端沿自身路径退向汇入点（前沿未到之处不动），
+  //     剩下汇入点处的 20 px；A 段后半把剩下的这一截逐渐拉直成起始段方向的直线（导出的 morph_d0），颜色由背景灰插值到存根色。
+  //     ②在①的前沿到达其分叉点之前收回分叉点并淡出（分叉点随①的拉直一起移动，不会悬空）；③④收向汇入点、⑤收向最上游站，到达时淡出。
+  //   B（1.2 s，t 0 → 1）：只剩①的 20 px 短线，锚在汇入点随所在边移动，由起始段方向转到存根朝向（取较小的转角），线宽插值到存根档宽。
+  //   C（0.3 s，标注淡入）：存根换成静止画法，汇入点那一端的方角与离河道 4 px 的间隙随标注淡出——即削角尖淡入；末端设施小方块淡入。
+  //   示意图 → 地图严格逆序。各段的去处由导出给定（bg_morph.py，D-13）：stub（①⑥）、fork（②）、join（③④）、site（⑤）、fade（残链）。
+  //   「Tributaries with no monitoring site」开关关闭时（规划端 10-05）：示意图不画存根与设施小方块；①连同②在 A 段收向汇入点后淡出，同③。
   const bgW = so => so >= 5 ? 1.3 : so === 4 ? 1.0 : 0.75;            // 与 build 里背景河网的线宽同一规则
   const ramp = (t, a, b) => Math.max(0, Math.min(1, (t - a) / (b - a)));
-  const BG_FADE = { fork: [0.55, 0.85], piece: [0.8, 1], site: [0.8, 1] };
   const scr = pts => 'M' + pts.map(q => q[0].toFixed(1) + ',' + q[1].toFixed(1)).join('L');
-  function stubRect(st) { const G = stubGeom(st, 1); return G.len < 0.5 ? null : G.rect; }
-  const onRect = (rc, f) => [rc[0][0] + f * (rc[1][0] - rc[0][0]), rc[0][1] + f * (rc[1][1] - rc[0][1])];
-  function stubMorph(st, t) {                  // ①⑥ 在移动段的路径（屏幕坐标）、线宽与颜色；静止时为 null
-    if (!st.morph_geo || t <= 0 || t >= 1) return null;
-    const rc = stubRect(st);
-    if (!rc) return null;
-    const pts = st.morph_geo.map((g, k) => lerp2(P(g), onRect(rc, st.morph_f[k]), t));
-    return { pts, w: lerp(bgW(st.morph_so), st.w, t), col: state.bgCol(t) };
-  }
-  function bgTarget(r, t) {                    // 去处在 t 时与 t = 0 时的屏幕位置
-    const to = r.to;
-    if (to.k === 'fork') {
-      const A = P(to.at), rc = stubRect(state.stubById.get(to.stub));
-      return [rc ? lerp2(A, onRect(rc, to.f), t) : A, A];
+  const SHORT = 20;                                                    // A 段结束时①剩下的长度（= 存根长，数据 px）
+  const FADE_AT = [0.8, 1];                                            // ③④⑤（与开关关闭时的①②）到达时淡出
+  const stubsOn = () => state.showStubs !== false;
+  const lastOf = a => a[a.length - 1];
+  function shortGeom(st, a) {                  // A 段：①在收缩进度 a 时的点列（数据坐标，自汇入点起）与路径上弧长 s 处的点
+    const g = st.morph_geo, cs = st.morph_s, L0 = lastOf(cs), J = g[0], d0 = st.morph_d0;
+    const end = Math.min(L0 - a * (L0 - SHORT), L0);                  // 前沿（不足 20 px 的支流：整条，拉直后伸到 20 px）
+    const w = ease(ramp(a, 0.5, 1));                                   // A 段后半逐渐拉直
+    const at = (p, s_) => { const k = s_ * SHORT / end; return lerp2(p, [J[0] + d0[0] * k, J[1] + d0[1] * k], w); };
+    const pts = [];
+    for (let i = 0; i < g.length; i++) {
+      if (cs[i] <= end) { pts.push(at(g[i], cs[i])); continue; }
+      const f = (end - cs[i - 1]) / ((cs[i] - cs[i - 1]) || 1);
+      pts.push(at(lerp2(g[i - 1], g[i], f), end));
+      break;
     }
-    if (to.k === 'piece') {
-      const pc = state.pieceById.get(to.piece), i = to.i;
-      const G = lerp2(pc.geo_m[i], pc.geo_m[i + 1], to.s), S = lerp2(pc.sch_m[i], pc.sch_m[i + 1], to.s);
-      return [P(lerp2(G, S, t)), P(G)];
-    }
-    const st = state.stById.get(to.site);
-    return [stCenter(st, t), P(st.xy_geo)];
+    return { pts, at, end, L0 };
   }
-  function bgRiverAt(r, t) {                   // 背景河段在 t 时的屏幕点列与不透明度；null = 不画
-    if (t <= 0) return { pts: r.d.map(P), op: 1 };
+  function stubShort(st, s) {                  // ①⑥ 在 A / B 段的样子：屏幕点列、线宽、颜色；不画时 null
+    if (!st.morph_geo || !stubsOn()) return null;
+    const a = R_bgA(s), t = s.t;
+    if (t <= 0) {
+      if (a <= 0) return null;                                         // 静止的地图：由背景河段本身画
+      return { pts: shortGeom(st, a).pts.map(P), w: bgW(st.morph_so), col: state.bgCol(a) };
+    }
+    if (t >= 1) return null;
+    const J = P(lerp2(st.junction_geo, st.junction_schematic, t)), kb = (state.base || state.fit).k;
+    const d1 = norm([st.end_schematic[0] - st.junction_schematic[0], st.end_schematic[1] - st.junction_schematic[1]]);
+    const th0 = Math.atan2(st.morph_d0[1], st.morph_d0[0]);
+    let dth = Math.atan2(d1[1], d1[0]) - th0;
+    while (dth > Math.PI) dth -= 2 * Math.PI;
+    while (dth < -Math.PI) dth += 2 * Math.PI;
+    const th = th0 + dth * t, Ls = SHORT * kb;
+    return { pts: [J, [J[0] + Math.cos(th) * Ls, J[1] + Math.sin(th) * Ls]], w: lerp(bgW(st.morph_so), st.w, t), col: state.bgCol(1) };
+  }
+  function stubResidual(st, s) {               // C 段：20 px 短线里静止存根实心部分以外的两截（汇入点一端、外端），随标注淡出
+    if (!st.morph_geo || !stubsOn() || s.t < 1 || s.schA >= 1) return null;
+    const G = stubGeom(st, 1);
+    if (G.len < 0.5) return null;
+    return { segs: [[G.J, G.rect[0]], [G.rect[1], G.E]], w: st.w, op: 1 - s.schA };
+  }
+  function bgRiverAt(r, s) {                   // 背景河段的屏幕点列与不透明度；null = 不画
+    const a = R_bgA(s), t = s.t;
+    if (t >= 1) return null;
+    if (a <= 0) return { pts: r.d.map(P), op: 1 };
     const to = r.to || { k: 'fade' };
-    if (t >= 1 || to.k === 'stub') return null;
-    if (to.k === 'fade') return { pts: r.d.map(P), op: 1 - t };
-    const [T, T0] = bgTarget(r, t), fw = BG_FADE[to.k];
-    return { pts: r.d.map(p => { const q = P(p); return [T[0] + (1 - t) * (q[0] - T0[0]), T[1] + (1 - t) * (q[1] - T0[1])]; }),
-      op: 1 - ramp(t, fw[0], fw[1]) };
+    const toward = (C, c, op) => ({ pts: r.d.map(p => P([C[0] + (1 - c) * (p[0] - C[0]), C[1] + (1 - c) * (p[1] - C[1])])), op });
+    if (to.k === 'join') return toward(to.at, a, 1 - ramp(a, ...FADE_AT));
+    if (to.k === 'site') return toward(state.stById.get(to.site).xy_geo, a, 1 - ramp(a, ...FADE_AT));
+    if (to.k === 'fade') return { pts: r.d.map(P), op: 1 - a };
+    const st = state.stubById.get(to.stub);
+    if (!stubsOn()) return toward(st.junction_geo, a, 1 - ramp(a, ...FADE_AT));     // 开关关闭：①②同③，收向汇入点
+    if (to.k === 'stub') return null;                                  // ①⑥：由短线代替（bgMorph 层）
+    // ②：在①的前沿到达分叉点（a_k）之前收完——收拢进度 c = a ÷ (0.95 a_k)；收拢中心是分叉点在①上的当前位置
+    const L0 = lastOf(st.morph_s);
+    const ak = L0 > SHORT ? Math.max(0, Math.min(1, (L0 - to.s) / (L0 - SHORT))) : 1;
+    const c = ak > 0 ? Math.min(1, a / (0.95 * ak)) : 1;
+    if (c >= 1) return null;
+    const F = shortGeom(st, a).at(to.at, to.s);
+    return { pts: r.d.map(p => P([F[0] + (1 - c) * (p[0] - to.at[0]), F[1] + (1 - c) * (p[1] - to.at[1])])), op: 1 - ramp(c, 0.7, 1) };
   }
+  let R_bgA = s => 1 - s.mapA;                 // A 段的收缩进度：与地图元素淡出同步、反向时与淡入同步（自检的反向对照经 River.setBgA 换掉）
   const stCenter = (st, t) => P(lerp2(st.xy_geo, st.xy_schematic, t));
   function facGeom(f, t) {                     // 屏幕坐标：中心、朝向、宽高（含地图上的放大倍数）
     const c = P(lerp2(f.xy_geo, f.xy_schematic, t));
@@ -294,34 +326,38 @@
 
     layer.bg.attr('opacity', s.mapA).selectAll('path').attr('d', r => pathOf(r) + 'Z');
     layer.water.attr('opacity', s.mapA).selectAll('path').attr('d', w => w.rings.map(r => pathOf(r) + 'Z').join(''));
-    // F9（作者 10-05）：背景河网不随地图元素淡出（第三段不含背景河段），移动段收向各自的去处，示意图上不画
+    // F9（作者 10-05；分阶段，规划端 10-05）：背景河网不随地图元素淡出，A 段（a = 1 − mapA）收向各自的去处，示意图上不画
     layer.bgRivers.attr('display', t >= 1 ? 'none' : null);
     if (t < 1) layer.bgRivers.selectAll('path').each(function (r) {
-      const a = bgRiverAt(r, t), el = d3.select(this);
+      const a = bgRiverAt(r, s), el = d3.select(this);
       if (!a || a.op <= 0) { el.attr('display', 'none'); return; }
       el.attr('display', null).attr('opacity', a.op < 1 ? a.op : null).attr('d', scr(a.pts));
+    });
+    // ①⑥：A 段为退向汇入点的路径，B 段为 20 px 短线；C 段为短线里静止存根以外的两截（随标注淡出）
+    layer.bgMorph.selectAll('path').each(function (st) {
+      const m = stubShort(st, s), el = d3.select(this);
+      if (m) { el.attr('display', null).attr('d', scr(m.pts)).attr('stroke-width', m.w).attr('stroke', m.col).attr('opacity', null); return; }
+      const rs = stubResidual(st, s);
+      if (!rs) { el.attr('display', 'none'); return; }
+      el.attr('display', null).attr('d', rs.segs.map(scr).join('')).attr('stroke-width', rs.w).attr('stroke', state.bgCol(1)).attr('opacity', rs.op);
     });
 
     layer.pieces.selectAll('path')
       .attr('d', p => pathOf(piecePts(p, t)))
       .attr('stroke-width', p => pieceW(p, t));
 
-    layer.bgMorph.selectAll('path').each(function (st) {
-      const m = stubMorph(st, t), el = d3.select(this);
-      if (!m) { el.attr('display', 'none'); return; }
-      el.attr('display', null).attr('d', scr(m.pts)).attr('stroke-width', m.w).attr('stroke', m.col);
-    });
-
+    layer.stubs.attr('display', stubsOn() ? null : 'none');           // 开关关闭：示意图不画存根与设施小方块（地图上存根本来就看不见）
     layer.stubs.selectAll('g').each(function (st) {
       const G = stubGeom(st, t), g = d3.select(this);
-      const mor = !!st.morph_geo;                 // F9：有整条支流的存根在移动段由 bgMorph 的路径代替
+      const mor = !!st.morph_geo;                 // F9：有整条支流的存根在 A、B 段由 bgMorph 的路径代替
       if (mor && t < 1) { g.attr('display', 'none'); return; }
       g.attr('opacity', mor ? null : Math.min(1, G.len / 20));
       if (G.len < 0.5) { g.attr('display', 'none'); return; }
       g.attr('display', null);
-      const whole = !mor || s.schA >= 1;          // 削角尖与设施小方块在标注淡入时淡入（反向时随标注淡出）
+      // C 段：实心部分 + 削角尖（不透明），汇入点一端的方角与间隙在 bgMorph 层随标注淡出；设施小方块随标注淡入。静止时为一整条削角条
+      const whole = !mor || s.schA >= 1;
       g.select('path.stub-body').attr('d', whole ? G.body : G.rectPath);
-      g.select('path.stub-tip').attr('display', whole ? 'none' : null).attr('d', G.tipPath).attr('opacity', s.schA);
+      g.select('path.stub-tip').attr('display', whole ? 'none' : null).attr('d', G.tipPath).attr('opacity', null);
       g.select('rect').attr('x', G.E[0] - 2.5).attr('y', G.E[1] - 2.5).attr('opacity', mor && s.schA < 1 ? s.schA : null);
     });
 
@@ -376,7 +412,7 @@
     if (!state.showRatio || !state.d) return;
     const seen = new Set(), items = [];
     for (const e of state.d.edges) for (const c of e.confluences) if (!seen.has(c.branch)) { seen.add(c.branch); items.push([c.xy_geo, c.xy_schematic, c.share]); }
-    for (const st of state.d.stubs) if (st.kind === 'in' && st.share != null) items.push([st.junction_geo, st.junction_schematic, st.share]);
+    if (stubsOn()) for (const st of state.d.stubs) if (st.kind === 'in' && st.share != null) items.push([st.junction_geo, st.junction_schematic, st.share]);   // 存根关闭时不画存根处的扇形
     const r = 5.5, arc = d3.arc().innerRadius(0).outerRadius(r).startAngle(0);
     for (const [g, sc, sh] of items) {
       const c = P(lerp2(g, sc, t));
@@ -710,7 +746,7 @@
   Object.assign(window.River = window.River || {}, {
     Q, LANG, T, state, layer, on, emit, P, lerp, lerp2, norm, tri, pathOf, textW, hit,
     piecePts, pieceW, stubGeom, stCenter, facGeom, outletGeom, draw, still: still_, show, resetZoom, zoom, svg, placeLabels, W0, H0,
-    stubMorph, bgRiverAt, scr,
+    stubShort, stubResidual, bgRiverAt, scr, stubsOn, bgA: s => R_bgA(s), setBgA: f => { R_bgA = f; },
     R_ST, HALO, FAC, OUTLET_H, CHEV,
   });
   // 等 interact.js、stack.js、legend.js 都注册好钩子再载入（它们排在本文件之后）

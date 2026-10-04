@@ -55,6 +55,9 @@ main { flex: 1; display: flex; min-height: 0; }
 .bg-water { fill: var(--water); stroke: var(--water-edge); stroke-width: 0.8; stroke-linejoin: round; }
 .piece { fill: none; stroke: var(--river); stroke-linecap: round; stroke-linejoin: round; }
 .stub-body { fill: var(--stub); stroke: none; }   /* 存根：削角的实心条（作者 10-01，取代线加小箭头） */
+/* F9（作者 10-05）：形变中整条支流变成存根的那条路径（颜色与线宽逐帧插值，写在元素上）；标注淡入时单独淡入的削角尖 */
+.bg-morph { fill: none; stroke-linecap: butt; stroke-linejoin: round; }
+.stub-tip { fill: var(--stub); stroke: none; }
 .stub-flag { fill: var(--mark); }
 .outlet-mark { fill: var(--river); }
 .fac-storage { fill: var(--fac-storage); stroke: var(--fac-stroke); stroke-width: 1; stroke-linejoin: round; }

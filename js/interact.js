@@ -261,6 +261,8 @@
     }
     for (const x of both('stubs')) {
       const st = idx.stub.get(x.id);
+      const m = R.stubMorph(st, t);                // F9：移动段里存根由整条支流的形变路径代替，套边跟着这条路径走
+      if (m) { its.push({ d: R.scr(m.pts), w: m.w, sel: x.sel }); continue; }
       const G = R.stubGeom(st, t);
       if (G.len < 0.5) continue;
       its.push({ line: [G.J, G.E], w: st.w, sel: x.sel });

@@ -6,11 +6,10 @@
  * 宽 230 px，高随内容。分工（作者 10-04）：说明块回答「这是什么」，「怎么用」留给侧边栏空栈时的三条操作提示。
  * 外观与图例一致：半透明白底、同样的圆角与边框；收起后变成与图例同样的小标签，可再展开。收起状态不记忆（刷新即恢复展开）。
  *
- * 位置：与图例、小地图同一规则（D-60）——优先角落（先试左上），不压站点、存根、坝标记，线可以压；四角都压到时沿边滑动。
- * 只在载入流域、切换视图时选一次，缩放、平移不重算（D-59、D-60）。说明块最先选，图例与小地图把它「展开时」的矩形
- * （收起时也一样）当作不可进入，展开收起不会让它们挪位。地图视图下右上角的比例尺、指北针与数据署名同样不可进入
- * （署名是许可要求，不能被盖住）；这块区域也一并交给图例避开。
- * 由 legend.js 的 place() 在选图例位置之前调用（选位置的函数在 legend.js 的 R.corners 里）。
+ * 位置：与图例、小地图一起选（legend.js 的 arrange，作者 10-04）——不压站点、存根、坝标记，线可以压，取三块总代价最小的
+ * 组合；说明块自己的角落顺序是左上、右上、左下、右下。只在载入流域、切换视图时选一次，缩放、平移不重算（D-59、D-60）。
+ * 选位置时按说明块「展开时」的尺寸算，收起后仍贴在同一个角，展开收起不会让图例与小地图挪位。
+ * 地图视图下右上角的比例尺、指北针与数据署名不可进入（署名是许可要求，不能被盖住），对三块都一样（fixedRects）。
  *
  * 调试参数（只供自检的反向对照）：&introCorner=tl|tr|bl|br（强制角落）
  *
@@ -39,8 +38,8 @@
 
   // 地图视图右上角的比例尺、指北针与署名（deco.js：top 8、right 12；图形 150 × 46，署名一行）
   let attrW = null;
-  function decoRect() {
-    if (R.state.view !== 'map') return null;
+  function decoRect(view = R.state.view) {
+    if (view !== 'map') return null;
     if (attrW === null) {
       const c = document.createElement('canvas').getContext('2d');
       c.font = `11px ${getComputedStyle(document.body).fontFamily}`;
@@ -51,20 +50,16 @@
   }
   const grow = r => [r[0] - PAD, r[1] - PAD, r[2] + PAD, r[3] + PAD];
 
-  // ob：legend.js 算好的障碍物；key：流域 | 视图（与图例同一个键，只在它变化时重选）
-  function place(ob, key) {
-    if (!I.full) render();
-    const deco = decoRect();
-    if (key !== I.key || !I.corner) {
-      const { pick, scores, slid } = R.corners.pickPlace(ORDER, I.full[0], I.full[1], ob, deco ? [grow(deco)] : []);
-      I.corner = pick.c; I.key = key; I.slid = slid;
-      I.scores = Object.fromEntries(scores.map(s => [s.c, s.v]));
-      const forced = R.Q.get('introCorner');           // 调试（自检的反向对照）：&introCorner=tl|tr|bl|br 强制角落
-      if (ORDER.includes(forced)) { I.corner = forced; I.slid = null; }
-    }
+  // 一起选位置时要的两样：展开时的尺寸、不可进入的固定区域（外扩 8 px）
+  function size() { if (!I.full) render(); return I.full; }
+  function fixedRects(view) { const d = decoRect(view); return d ? [grow(d)] : []; }
+  // legend.js 一起选完后交回本块的位置：a = { id, v, slid, scores }；ob 为当时的障碍物
+  function setPlace(a, ob) {
+    I.corner = a.id; I.slid = a.slid; I.scores = a.scores;
+    const forced = R.Q.get('introCorner');             // 调试（自检的反向对照）：&introCorner=tl|tr|bl|br 强制角落
+    if (ORDER.includes(forced)) { I.corner = forced; I.slid = null; }
     I.reserved = R.corners.placeAt(I.corner, I.full[0], I.full[1]);
     apply(ob);
-    return [grow(I.reserved), ...(deco ? [grow(deco)] : [])];       // 图例、小地图不可进入的区域
   }
   function apply(ob) {
     const el = box.node();
@@ -86,5 +81,5 @@
     if (I.corner) apply(null);                         // 只按原位置重新贴边，不重选，也不牵动图例与小地图
   });
   render();
-  R.intro = { state: I, place, reserved: () => I.reserved && grow(I.reserved), decoRect: () => { const d = decoRect(); return d && grow(d); } };
+  R.intro = { state: I, ORDER, size, fixedRects, setPlace, reserved: () => I.reserved && grow(I.reserved), decoRect: () => { const d = decoRect(); return d && grow(d); } };
 })();

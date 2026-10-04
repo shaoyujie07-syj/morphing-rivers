@@ -2,7 +2,8 @@
  * legend.js — T-11 图例（impl-spec §8、§4.3；D-52、D-57）
  *
  * 图例放在画布角落：默认收成一个小标签，点击展开为半透明面板；与画布上的线、站点、设施、标注重叠时自动换角落
- * （依次试左下、右下、左上、右上，取第一个不重叠的；都重叠时取重叠最少的，并写 body[data-legend-overlap]）。
+ * （图例自己的顺序是左下、右下、左上、右上；作者 10-04 起与说明块、小地图一起选，取总代价最小的组合，见 arrange；
+ * 四个角都压到东西时写 body[data-legend-overlap]）。
  * 作者 10-01：角落只在载入流域、切换视图时算一次；缩放、平移（以及展开收起图例、窗口变化）不重算，只按原角落重新贴边——
  * 位置突变比压住几根线更干扰，缩放是连续动作，来回几次角落就跳几次；压住的线从半透明面板下穿过。
  * 默认五项：监测站、河道与线宽含义、蓄水、堰、未监测支流存根；其余折叠在「更多符号」里。
@@ -163,9 +164,6 @@
     return n;
   }
   const overlapCount = (r, ob) => overlapCats(r, ob).reduce((a, b) => a + b, 0);
-  const worse = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2];   // > 0：a 比 b 差（依次比站点、存根与坝标记、线）
-  // 作者 10-01（第四轮）：优先角落；四个角都压到可点击对象（站点、存根、坝标记）时，沿最近的边滑到第一个什么都不压的位置；
-  // 全画布都没有时，取压住可点击对象最少的位置。图例与小地图共用（小地图另把图例占的矩形当作不可进入）。
   // 位置记作 id：四个角 'tl' 'tr' 'bl' 'br'，沿边的位置 't@x' 'b@x'（上 / 下边，左端 x）、'l@y' 'r@y'（左 / 右边，上端 y）
   const STEP = 4;                                      // 沿边每 4 px 试一个位置
   const CORNERS = ['tl', 'tr', 'bl', 'br'];
@@ -185,41 +183,93 @@
     for (const y of along(M, ch - M - h)) ids.push('l@' + y, 'r@' + y);
     return ids;
   }
-  function pickPlace(corners, w, h, ob, avoid = []) {
-    const score = id => { const r = placeAt(id, w, h); return avoid.some(a => hitRect(a, r)) ? null : { c: id, r, v: overlapCats(r, ob) }; };
-    const cs = corners.map(score).filter(Boolean);
-    cs.forEach(s => { s.n = s.v[0] + s.v[1] + s.v[2]; });
-    const best = a => a.reduce((x, y) => worse(y.v, x.v) < 0 ? y : x);
-    if (cs.some(s => s.v[0] + s.v[1] === 0)) {        // 有角落不压可点击对象：照旧在角落里选（第一个什么都不压的角；否则按三档取最少）
-      return { pick: cs.find(s => s.n === 0) || best(cs), scores: cs, slid: null };
-    }
-    const start = cs.length ? best(cs) : { c: corners[0], r: placeAt(corners[0], w, h) };   // 从「最不坏」的角出发
-    const dist = s => Math.hypot(s.r[0] - start.r[0], s.r[1] - start.r[1]);
-    const es = edgeIds(w, h).map(score).filter(Boolean);
-    es.forEach(s => { s.n = s.v[0] + s.v[1] + s.v[2]; s.d = dist(s); });
-    const clean = es.filter(s => s.n === 0);
-    const pick = clean.length ? clean.reduce((a, b) => b.d < a.d ? b : a)          // 离出发的角最近的干净位置
-      : [...cs.map(s => ({ ...s, n: s.v[0] + s.v[1] + s.v[2], d: dist(s) })), ...es]  // 全画布都没有：压可点击对象最少（再比线、再比距离）
-        .reduce((a, b) => (worse(b.v, a.v) || b.d - a.d) < 0 ? b : a);
-    return { pick, scores: cs, slid: CORNERS.includes(pick.c) ? null : { from: start.c, clean: clean.length > 0, cats: pick.v } };
+  // 作者 10-04：放在画布边上的几块——说明块、图例、小地图（只在示意图视图；地图视图下隐藏，D-35）——一起选位置，
+  // 取总代价最小的组合。原先逐块依次选（说明块先、图例次、小地图最后），各自最优合起来不是最优：Yarra 地图里说明块
+  // 躲开左上的 58 段线去了左下，把图例挤到左上压 183 段线。
+  // 代价依次比（与原规则的三档一致）：
+  //   ① 压住的可点击对象总数（站点、存根、坝标记）：有能做到 0 的组合就只在其中选；都做不到时取最少，一样少时优先保住站点；
+  //   ② 压住的线段总数；
+  //   ③ 平局顺序：先比说明块、再图例、再小地图，各按自己的角落顺序（说明块左上起、图例左下起、小地图右下起）；
+  //      沿边位置排在角落之后，按离本块首选角的距离。没有冲突时三块落在各自的默认角。
+  // 候选：四个角；某块四个角都压到可点击对象时，才加入它的沿边位置（每 4 px，只取不压可点击对象的；都压时全取）——
+  // 角落可预期、用户下次打开还在那个角，沿边是没办法时的退路，不与角落平起平坐（作者 10-04）。
+  // 块与块之间至少留 8 px；固定区域（地图视图右上角的比例尺、指北针与署名）不进入。
+  // 只在载入流域、切换视图时选一次，缩放、平移、展开收起不重选（D-59、D-60）。
+  const GAP = 8;
+  function arrange(blocks, ob, fixed = []) {
+    const grow = (r, p) => [r[0] - p, r[1] - p, r[2] + p, r[3] + p];
+    const C = blocks.map(B => {
+      const [w, h] = B.size;
+      const mk = id => { const r = placeAt(id, w, h); return { id, r, v: overlapCats(r, ob) }; };
+      const free = c => !fixed.some(f => hitRect(f, c.r));
+      const corners = B.order.map((id, i) => Object.assign(mk(id), { rank: i })).filter(free);
+      const cs = corners.slice();
+      let edges = 0;
+      if (!corners.some(c => c.v[0] + c.v[1] === 0)) {
+        const ref = mk(B.order[0]).r;
+        const es = edgeIds(w, h).map(mk).filter(free);
+        const clean = es.filter(c => c.v[0] + c.v[1] === 0);
+        for (const c of (clean.length ? clean : es)) { c.rank = 4 + Math.hypot(c.r[0] - ref[0], c.r[1] - ref[1]); cs.push(c); edges++; }
+      }
+      return { k: B.k, order: B.order, corners, cs, edges };
+    });
+    let best = null, combos = 0;
+    const better = (a, b) => {
+      if (!b) return true;
+      if (a.click !== b.click) return a.click < b.click;
+      if (a.st !== b.st) return a.st < b.st;
+      if (a.lines !== b.lines) return a.lines < b.lines;
+      for (let i = 0; i < a.ranks.length; i++) if (a.ranks[i] !== b.ranks[i]) return a.ranks[i] < b.ranks[i];
+      return false;
+    };
+    const rec = (i, pick) => {
+      if (i === C.length) {
+        combos++;
+        const sum = j => pick.reduce((s, c) => s + c.v[j], 0);
+        const cand = { pick, click: sum(0) + sum(1), st: sum(0), lines: sum(2), ranks: pick.map(c => c.rank) };
+        if (better(cand, best)) best = cand;
+        return;
+      }
+      for (const c of C[i].cs) if (!pick.some(p => hitRect(grow(p.r, GAP), c.r))) rec(i + 1, pick.concat([c]));
+    };
+    rec(0, []);
+    const out = { combos, totals: best && { click: best.click, stations: best.st, lines: best.lines }, blocks: {} };
+    C.forEach((B, i) => {
+      const p = best ? best.pick[i] : B.cs[0];
+      out.blocks[B.k] = { id: p.id, v: p.v, edges: B.edges,
+        slid: CORNERS.includes(p.id) ? null : { from: B.order[0], clean: p.v[0] + p.v[1] === 0, cats: p.v },
+        scores: Object.fromEntries(B.corners.map(c => [c.id, c.v])) };
+    });
+    return out;
   }
+  let seq = 0;                                         // 每重选一次加一：小地图据此知道要换位置
   function place() {
     const el = box.node();
     const w = el.offsetWidth, h = el.offsetHeight;
     const ob = obstacles();
     const forced = R.Q.get('legendCorner');
-    const key = (R.state.id || '') + '|' + (L.view || R.state.view);
-    // 说明块先选位置（作者 10-04）；它展开时的矩形、地图视图的比例尺与署名，图例都不进入
-    const avoid = R.intro ? R.intro.place(ob, key) : [];
+    const view = L.view || R.state.view;
+    const key = (R.state.id || '') + '|' + view;
     L.recomputed = key !== L.key || !L.corner;
-    if (L.recomputed) {                              // 载入流域、切换视图：选位置（优先角落；先避开站点，再避开存根与坝标记，线可以压）
-      let { pick, scores, slid } = pickPlace(ORDER, w, h, ob, avoid);
-      const f = forced && !L.forcedDone && scores.find(s => s.c === forced);
-      if (f) { pick = f; slid = null; }
-      L.corner = pick.c; L.key = key; L.slid = slid; L.scores = Object.fromEntries(scores.map(s => [s.c, s.n]));
-      L.scoreCats = Object.fromEntries(scores.map(s => [s.c, s.v]));
-      if (!scores.some(s => s.n === 0)) document.body.dataset.legendOverlap = '1';
+    if (L.recomputed) {                              // 载入流域、切换视图：几块一起选位置
+      const blocks = [];
+      if (R.intro) blocks.push({ k: 'intro', size: R.intro.size(), order: R.intro.ORDER });
+      blocks.push({ k: 'legend', size: [w, h], order: ORDER });
+      const ms = view === 'schematic' && R.minimap && R.minimap.size();
+      if (ms) blocks.push({ k: 'minimap', size: ms, order: R.minimap.ORDER });
+      const fixed = R.intro ? R.intro.fixedRects(view) : [];
+      const A = arrange(blocks, ob, fixed);
+      L.arrangement = { seq: ++seq, key, view, combos: A.combos, totals: A.totals, blocks: A.blocks };
+      const lg = A.blocks.legend;
+      L.corner = lg.id; L.slid = lg.slid; L.key = key;
+      if (forced && !L.forcedDone && CORNERS.includes(forced)) { L.corner = forced; L.slid = null; }   // 调试：强制角落
+      L.scoreCats = lg.scores;
+      L.scores = Object.fromEntries(Object.entries(lg.scores).map(([c, v]) => [c, v[0] + v[1] + v[2]]));
+      if (!Object.values(L.scores).some(n => n === 0)) document.body.dataset.legendOverlap = '1';
       else delete document.body.dataset.legendOverlap;
+      if (R.intro) R.intro.setPlace(A.blocks.intro, ob);
+      document.body.dataset.arrangement = JSON.stringify({ key, view, combos: A.combos, totals: A.totals,
+        blocks: Object.fromEntries(Object.entries(A.blocks).map(([k, b]) => [k, { id: b.id, v: b.v, edges: b.edges }])) });
     }
     const r = placeAt(L.corner, w, h);               // 其余时候按原角落（或原来那条边）重新贴边；当前压线数照记
     L.rect = r;
@@ -229,11 +279,13 @@
     document.body.dataset.legend = JSON.stringify({ open: L.open, corner: L.corner, slid: L.slid, rect: r.map(v => Math.round(v * 10) / 10),
       overlap: L.overlap, overlap_cats: L.overlapCats, scores: L.scores, score_cats: L.scoreCats, w, h, cw: canvas.clientWidth, ch: canvas.clientHeight,
       recomputed: L.recomputed });
-    R.emit('legendplaced', { corner: L.corner, rect: r });     // 小地图据此避开图例占的位置
+    R.emit('legendplaced', { corner: L.corner, rect: r });     // 小地图据此取自己的位置（一起选的结果）
   }
-  // 小地图（验收修订 10-01 移到画布角落）与图例共用选角落的规则
-  // reset：清掉已选的角落，下次就位时重选（自检的反向对照用来模拟「每次都重算」）
-  R.corners = { obstacles, overlapCount, overlapCats, pickPlace, placeAt, rectAt: (c, w, h) => rectAt(c, w, h), state: L,
+  // 说明块、小地图（验收修订 10-01 移到画布角落）与图例一起选位置（arrange）
+  // assigned(k)：最近一次一起选给 k 的位置（{ seq, key, id, v, slid, scores }），没有参加则为 null
+  // reset：清掉已选的位置，下次就位时重选（自检的反向对照用来模拟「每次都重算」）
+  R.corners = { obstacles, overlapCount, overlapCats, arrange, placeAt, rectAt: (c, w, h) => rectAt(c, w, h), state: L,
+    assigned: k => { const a = L.arrangement; return a && a.blocks[k] ? { seq: a.seq, key: a.key, ...a.blocks[k] } : null; },
     reset: () => { L.key = null; R.emit('cornersreset'); } };
 
   box.on('click', ev => {

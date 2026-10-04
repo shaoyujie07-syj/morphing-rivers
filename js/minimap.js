@@ -2,7 +2,7 @@
  * minimap.js — T-12 小地图与视野框（impl-spec §7、§6.3；D-35、D-52）；验收修订（作者 10-01）
  *
  * 位置：原在侧边栏底部（110–190 px，看不清），改到画布角落，宽约 260 px、高随流域外包框比例、长边上限 280 px（作者 10-01 放大，原 200 / 220）；
- *   与图例分居两角（图例先选，小地图避开图例所在的角），与线重叠时按图例同一套规则自动换角落；地图视图下隐藏（D-35）。
+ *   与图例分居两角，与说明块、图例一起选位置（作者 10-04，legend.js 的 arrange；小地图自己的顺序右下起）；地图视图下隐藏（D-35）。
  * 内容：地图视图的缩小版——流域轮廓、诱导子树、水库水面、站点、坝标记；不画背景河网、城镇与标注；形状跟随地理外包框（北向上）。
  * 交互：不可点选（D-35），可悬停，与主视图双向联动高亮，两边同一种交互蓝（Hoang 2021 的 inset map：悬停让两图同时亮起）：
  *   - 主视图悬停或选中站、河、坝 → interact.js 发出 'hl'（悬停与选中集合）→ 小地图对应位置亮起；
@@ -26,8 +26,20 @@
   const ORDER = ['br', 'tr', 'tl', 'bl'];
   const M = { geo: null, w: 0, h: 0, corner: null, overlap: 0, legend: null, pe: new Map(), hl: 0 };
   // 作者 10-01：由宽 200、长边 220 放大到宽 260、长边 280（右下角本来空着；空心环在 12 px 的点上才清楚）。
-  // 角落规则不变：图例先选，小地图在其余三角里取第一个不压线的，都压线取最少的；压住的线从半透明面板下穿过，不再躲避
+  // 位置与说明块、图例一起选（作者 10-04）：不压可点击对象，再比压线总数；压住的线从半透明面板下穿过，不再躲避
   const PAD = 6, BASE_W = 260, MAX_SIDE = 280;
+
+  // 小地图的尺寸只取决于流域轮廓的长宽比：宽 260，长边不超过 280
+  function sizeOf(d) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const ring of d.background.outline_geo) for (const [x, y] of ring) {
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    }
+    const asp = (y1 - y0) / (x1 - x0);
+    let W = BASE_W, H = Math.round((BASE_W - 2 * PAD) * asp + 2 * PAD);
+    if (H > MAX_SIDE) { H = MAX_SIDE; W = Math.round((MAX_SIDE - 2 * PAD) / asp + 2 * PAD); }
+    return [W, H];
+  }
 
   function build() {
     const d = R.state.d;
@@ -37,9 +49,7 @@
     for (const ring of d.background.outline_geo) for (const [x, y] of ring) {
       x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
     }
-    const asp = (y1 - y0) / (x1 - x0);
-    let W = BASE_W, H = Math.round((BASE_W - 2 * PAD) * asp + 2 * PAD);
-    if (H > MAX_SIDE) { H = MAX_SIDE; W = Math.round((MAX_SIDE - 2 * PAD) / asp + 2 * PAD); }
+    const [W, H] = sizeOf(d);
     M.w = W; M.h = H;
     const k = Math.min((W - 2 * PAD) / (x1 - x0), (H - 2 * PAD) / (y1 - y0));
     const ox = (W - (x1 - x0) * k) / 2 - x0 * k, oy = (H - (y1 - y0) * k) / 2 - y0 * k;
@@ -145,24 +155,19 @@
     M.hlCounts = n;
   }
 
-  // 选位置：图例先选（legend.js 发 'legendplaced'），小地图在其余三角里按同一规则选；图例占的矩形（外扩 8 px）不可进入。
-  // 作者 10-01：只在载入流域、切换视图（或图例换了位置）时选；缩放、平移不重算，按原位置贴边，压住的线从面板下穿过
+  // 选位置（作者 10-04）：与说明块、图例一起选（legend.js 的 arrange），这里只取分给小地图的位置。
+  // 只在载入流域、切换视图时选；缩放、平移不重算，按原位置贴边，压住的线从面板下穿过（作者 10-01）。
+  // 地图视图下小地图隐藏（D-35），不参加；切回示意图时随图例一起重选
   function place() {
     if (!R.corners || !M.w) return;
     const ob = R.corners.obstacles();
     const ow = M.w + 10, oh = M.h + 10;            // 含内边距与边框
-    const lr = M.legendRect;
-    // 只按图例的位置 id 判断要不要重选（图例展开、收起只改高度，不触发重选，D-59「只在载入与切换时重算」）
-    const key = (R.state.id || '') + '|' + R.state.view + '|' + M.legend;
-    if (key !== M.key || !M.corner) {
-      const cands = ORDER.filter(c => c !== M.legend);
-      // 与图例同一规则（作者 10-01）：优先角落，先避开站点，再避开存根与坝标记，线可以压；四个角都压到可点击对象时沿边滑动
-      const avoid = lr ? [[lr[0] - 8, lr[1] - 8, lr[2] + 8, lr[3] + 8]] : [];
-      const ir = R.intro && R.intro.reserved();     // 说明块展开时的矩形（作者 10-04）：收起时也不进入
-      if (ir) avoid.push(ir);
-      const { pick: pk, scores, slid } = R.corners.pickPlace(cands, ow, oh, ob, avoid);
-      M.corner = pk.c; M.slid = slid; M.key = key; M.scores = Object.fromEntries(scores.map(s => [s.c, s.n]));
+    const a = R.corners.assigned('minimap');
+    if (a && a.seq !== M.seq) {
+      M.corner = a.id; M.slid = a.slid; M.seq = a.seq; M.key = a.key;
+      M.scores = Object.fromEntries(Object.entries(a.scores).map(([c, v]) => [c, v[0] + v[1] + v[2]]));
     }
+    if (!M.corner) M.corner = ORDER[0];
     const r = R.corners.placeAt(M.corner, ow, oh);
     M.rect = r;
     M.overlapCats = R.corners.overlapCats(r, ob);  // [站点, 存根与坝标记, 线与其他]（缩放后可能 > 0）
@@ -200,10 +205,11 @@
   R.on('stack', update);
   R.on('hl', render);
   R.on('legendplaced', e => { M.legend = e.corner; M.legendRect = e.rect; place(); });
-  R.on('cornersreset', () => { M.key = null; });
+  R.on('cornersreset', () => { M.seq = null; });
   R.on('morphstart', () => box.select('.mm-frame').style('display', 'none'));
   window.addEventListener('resize', () => setTimeout(build, 0));
-  R.minimap = { build, update, info: () => ({ corner: M.corner, slid: M.slid || null, rect: M.rect && M.rect.map(v => Math.round(v * 10) / 10),
+  R.minimap = { build, update, ORDER, size: () => { const d = R.state.d; if (!d) return null; const [w, h] = sizeOf(d); return [w + 10, h + 10]; },
+    info: () => ({ corner: M.corner, slid: M.slid || null, rect: M.rect && M.rect.map(v => Math.round(v * 10) / 10),
     overlap: M.overlap, overlap_cats: M.overlapCats, scores: M.scores, legend: M.legend, legend_rect: M.legendRect && M.legendRect.map(v => Math.round(v * 10) / 10), w: M.w, h: M.h,
     visible: getComputedStyle(box.node()).display !== 'none', hl: M.hl, hl_counts: M.hlCounts || null }) };
 })();

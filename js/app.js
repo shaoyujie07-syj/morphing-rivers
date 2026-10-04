@@ -31,7 +31,8 @@
   const stubTip = w => Math.max(3, 1.5 * w);
   const OUTLET_H = 10;                       // 河口箭头高 [初值]
   const CHEV = 8;                            // 流向 V 形高 [初值]
-  const PHASE = { labels: 0.3, move: 1.2, map: 0.5 };   // 形变三段（秒，D-52）
+  // 形变三段（秒，D-52）。作者 10-05（F9 时长对比后采用 v1）：A 段（与地图元素淡出、淡入同时）由 0.5 改为 0.8 s，B、C 段不变，合计约 2.3 s
+  const PHASE = { labels: 0.3, move: 1.2, map: 0.8 };
   const TOTAL = PHASE.labels + PHASE.move + PHASE.map;
   const FONT = '11px "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif';
   const FONT_END = '600 13px "Segoe UI", "Microsoft YaHei", "PingFang SC", system-ui, sans-serif';
@@ -302,7 +303,9 @@
     const F = shortGeom(st, a).at(to.at, to.s);
     return { pts: r.d.map(p => P([F[0] + (1 - c) * (p[0] - to.at[0]), F[1] + (1 - c) * (p[1] - to.at[1])])), op: 1 - ramp(c, 0.7, 1) };
   }
-  let R_bgA = s => 1 - s.mapA;                 // A 段的收缩进度：与地图元素淡出同步、反向时与淡入同步（自检的反向对照经 River.setBgA 换掉）
+  // A 段的收缩进度：形变帧给出 a（见 frameAt）；静止帧与自检直接画的帧没有 a，取 1 − mapA。浮点：A′ 末帧 xA 可能算成 0.999…98，
+  // 收缩进度应为 0（否则末帧会把整条支流当一条路径画）。自检的反向对照经 River.setBgA 换掉
+  let R_bgA = s => (s.a != null ? (s.a < 1e-9 ? 0 : s.a) : 1 - s.mapA);
   const stCenter = (st, t) => P(lerp2(st.xy_geo, st.xy_schematic, t));
   function facGeom(f, t) {                     // 屏幕坐标：中心、朝向、宽高（含地图上的放大倍数）
     const c = P(lerp2(f.xy_geo, f.xy_schematic, t));
@@ -630,14 +633,17 @@
     const tt = Math.max(0, Math.min(1, prog)) * TOTAL;
     if (dir === 'toSchematic') {                 // 地图 → 示意图：③ 地图元素淡出、② 移动、① 标注与箭头淡入
       const a = PHASE.map, b = a + PHASE.move;
-      if (tt <= a) return { t: 0, mapA: 1 - ease(tt / a), schA: 0 };
+      // A 段：地图元素淡出照旧 cubic-in-out；背景河网的收缩进度 a 另用 ease-out——远端收得快、近汇入点放慢（作者 10-05）
+      if (tt <= a) return { t: 0, mapA: 1 - ease(tt / a), schA: 0, a: d3.easeCubicOut(tt / a) };
       if (tt <= b) return { t: ease((tt - a) / PHASE.move), mapA: 0, schA: 0 };
       return { t: 1, mapA: 0, schA: ease(Math.min(1, (tt - b) / PHASE.labels)) };
     }
     const a = PHASE.labels, b = a + PHASE.move; // 示意图 → 地图：① 标注与箭头淡出、② 移动、③ 地图元素淡入
     if (tt <= a) return { t: 1, mapA: 0, schA: 1 - ease(tt / a) };
     if (tt <= b) return { t: 1 - ease((tt - a) / PHASE.move), mapA: 0, schA: 0 };
-    return { t: 0, mapA: ease(Math.min(1, (tt - b) / PHASE.map)), schA: 0 };
+    // A′ 段：延伸进度用 ease-in——从汇入点出发时慢、伸远时快，正好是 A 段的时间倒放
+    const xA = Math.min(1, (tt - b) / PHASE.map);
+    return { t: 0, mapA: ease(xA), schA: 0, a: 1 - d3.easeCubicIn(xA) };
   }
   const still = view => view === 'map' ? { t: 0, mapA: 1, schA: 0 } : { t: 1, mapA: 0, schA: 1 };
 
@@ -746,7 +752,7 @@
   Object.assign(window.River = window.River || {}, {
     Q, LANG, T, state, layer, on, emit, P, lerp, lerp2, norm, tri, pathOf, textW, hit,
     piecePts, pieceW, stubGeom, stCenter, facGeom, outletGeom, draw, still: still_, show, resetZoom, zoom, svg, placeLabels, W0, H0,
-    stubShort, stubResidual, bgRiverAt, scr, stubsOn, bgA: s => R_bgA(s), setBgA: f => { R_bgA = f; },
+    stubShort, stubResidual, bgRiverAt, scr, stubsOn, bgA: s => R_bgA(s), setBgA: f => { R_bgA = f; }, getBgA: () => R_bgA, PHASE,
     R_ST, HALO, FAC, OUTLET_H, CHEV,
   });
   // 等 interact.js、stack.js、legend.js 都注册好钩子再载入（它们排在本文件之后）

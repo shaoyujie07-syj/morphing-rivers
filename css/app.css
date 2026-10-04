@@ -31,7 +31,6 @@ body { display: flex; flex-direction: column; overflow: hidden; }
 .grp { display: flex; align-items: center; gap: 6px; }
 .grp-basin { flex-direction: column; align-items: flex-start; gap: 0; min-width: 260px; }
 .basin-line { display: flex; align-items: center; gap: 8px; }
-#basin-name { font-size: 15px; font-weight: 600; }
 #basin-select { font: inherit; border: 1px solid var(--neutral-light); border-radius: 3px; padding: 1px 4px;
   background: #fff; color: var(--text); }
 .subtitle { font-size: 10px; color: var(--text-2); }
@@ -329,7 +328,6 @@ input[type=checkbox] { accent-color: var(--interact); }
   --dash: 1px dashed var(--fac-stroke); }
 html, body { font-size: var(--fs-body); }
 #topbar { gap: var(--sp-6); padding: 0 var(--sp-4); }
-#basin-name { font-size: var(--fs-body); font-weight: 600; }
 .subtitle { font-size: var(--fs-aux); }
 #basin-select, .grp-filters select, .grp-filters button, .grp-search input {
   height: var(--h-ctl); font-size: var(--fs-aux); border: 1px solid var(--line); border-radius: var(--r); padding: 0 var(--sp-2);
@@ -420,3 +418,19 @@ body.figure #svgout { display: none; }
   pointer-events: none; overflow: hidden; }
 .ts-sparse span { background: rgba(255, 255, 255, .85); padding: 0 2px; }   /* 目标线、超标区从文字后面过，不穿过文字 */
 .ts-sparse .link { font-size: var(--fs-aux); padding: 0; pointer-events: auto; }
+
+/* ------------------------------------------------------------------ 说明块与顶部栏（作者 10-04，同行反馈 F1–F5） */
+/* 说明块：外观与图例一致（半透明白底、同样的圆角、边框与阴影）；宽 230，高随内容；收起后用图例同样的小标签 */
+.intro { position: absolute; z-index: 10; font-size: var(--fs-aux); color: var(--text); line-height: 14px; }
+.intro.open { width: 230px; background: rgba(255,255,255,.88); border: 1px solid var(--line); border-radius: var(--r);
+  padding: var(--sp-3); box-shadow: 0 1px 4px rgba(0,0,0,.08); }
+.in-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px; font-size: var(--fs-body); line-height: 18px; }
+.in-head b { font-weight: 600; }
+.in-hide { border: 0; background: none; color: var(--interact); cursor: pointer; font: inherit; font-size: var(--fs-aux); padding: 0; }
+.in-desc { margin: 0; }
+.in-hints { margin: 6px 0 0; padding: 6px 0 0; border-top: 1px solid var(--line); list-style: none; font-style: italic; color: var(--text-2); }
+.in-hints li + li { margin-top: 3px; }
+body.figure #intro { display: none !important; }
+/* 顶部栏：流域下拉带标签（与参数、时间范围同一写法）；视图按钮右边一行小字，比按钮小一档、次要文字色、不换行 */
+.grp-basin .ctl { display: flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-aux); color: var(--text-2); }
+.view-hint { margin-left: var(--sp-1); font-size: var(--fs-aux); color: var(--text-2); white-space: nowrap; }

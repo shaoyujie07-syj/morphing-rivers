@@ -209,9 +209,11 @@
     const ob = obstacles();
     const forced = R.Q.get('legendCorner');
     const key = (R.state.id || '') + '|' + (L.view || R.state.view);
+    // 说明块先选位置（作者 10-04）；它展开时的矩形、地图视图的比例尺与署名，图例都不进入
+    const avoid = R.intro ? R.intro.place(ob, key) : [];
     L.recomputed = key !== L.key || !L.corner;
     if (L.recomputed) {                              // 载入流域、切换视图：选位置（优先角落；先避开站点，再避开存根与坝标记，线可以压）
-      let { pick, scores, slid } = pickPlace(ORDER, w, h, ob);
+      let { pick, scores, slid } = pickPlace(ORDER, w, h, ob, avoid);
       const f = forced && !L.forcedDone && scores.find(s => s.c === forced);
       if (f) { pick = f; slid = null; }
       L.corner = pick.c; L.key = key; L.slid = slid; L.scores = Object.fromEntries(scores.map(s => [s.c, s.n]));

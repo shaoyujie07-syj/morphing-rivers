@@ -10,21 +10,23 @@
 </head>
 <body>
 <header id="topbar">
+  <!-- 左：流域下拉带标签（与参数、时间范围一致），其下为数据来源；原先下拉左边的流域名大字与下拉重复，已去掉（作者 10-04） -->
   <div class="grp grp-basin">
-    <div class="basin-line">
-      <span id="basin-name">—</span>
+    <label class="ctl basin-line"><span id="lbl-basin"></span>
       <select id="basin-select" aria-label="Basin">
         <option value="goulburn">Goulburn</option>
         <option value="yarra">Yarra</option>
         <option value="campaspe">Campaspe</option>
         <option value="werribee">Werribee</option>
       </select>
-    </div>
+    </label>
     <div class="subtitle" id="subtitle"></div>
   </div>
+  <!-- 中左：两个视图按钮，右边一行小字说明（不换行，不增加顶部栏高度；作者 10-04） -->
   <div class="grp grp-view">
     <button type="button" data-view="schematic" id="btn-schematic"></button>
     <button type="button" data-view="map" id="btn-map"></button>
+    <span class="view-hint" id="view-hint"></span>
   </div>
   <!-- 中右：参数（即筛选，D-56 只剩参数类型）、时间范围，同一底色表示同类（D-52）；M3 接入，M2 为占位 -->
   <div class="grp grp-filters">
@@ -48,6 +50,7 @@
 <script src="js/interact.js"></script>
 <script src="js/ts.js"></script>
 <script src="js/stack.js"></script>
+<script src="js/intro.js"></script>
 <script src="js/legend.js"></script>
 <script src="js/minimap.js"></script>
 <script src="js/sources.js"></script>

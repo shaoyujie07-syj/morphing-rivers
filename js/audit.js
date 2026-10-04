@@ -99,6 +99,8 @@
     if (map) for (const pos of (s.mapLabelPos || new Map()).values()) if (pos.rect) avoid.push([...pg([pos.rect[0], pos.rect[1]]), ...pg([pos.rect[2], pos.rect[3]])]);
     const lg = document.getElementById('legend');
     if (lg) { const b = lg.getBoundingClientRect(); avoid.push([b.left, b.top, b.right, b.bottom]); }
+    const intro = document.getElementById('intro');   // 说明块（作者 10-04）：与图例一样是半透明面板，线可以从下面穿过
+    if (intro) { const b = intro.getBoundingClientRect(); avoid.push([b.left, b.top, b.right, b.bottom]); }
 
     // ---------------- 颜色（计算后的样式）
     const styles = {

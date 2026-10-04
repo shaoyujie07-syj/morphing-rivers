@@ -21,6 +21,12 @@
     en: {
       title: 'River network schematic · monitoring sites', basinSelect: 'Basin',
       schematic: 'Schematic', map: 'Map', subtitle: 'Data: Geofabric V3.3 · WMIS · SILO · EPA ERS · GeoNames',
+      viewHint: 'Switch views — the map morphs into the schematic',
+      // ---- 画布上常驻的说明块（优先左上角；作者 10-04，反馈 F1–F5）
+      introTitle: 'Morphing Rivers', introHide: 'Hide',
+      introDesc: "Victoria's river-monitoring networks as schematics — and as maps.",
+      introHints: ['Schematic / Map switch views and start the morph', 'Click a site to add it to the panel on the right',
+        "The left dropdown chooses a basin (a river's catchment)"],
       outlet: to => `Outlet · flows into ${to}`, source: 'Upstream',
       summary: (n, x) => `${n} active monitoring sites shown. ${x}% of the catchment has no active monitoring site.`,
       note: 'Discontinued sites are not counted.',

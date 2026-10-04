@@ -556,6 +556,8 @@
   function updateTopbar() {
     d3.select('#btn-schematic').text(T.schematic).classed('on', state.view === 'schematic');
     d3.select('#btn-map').text(T.map).classed('on', state.view === 'map');
+    d3.select('#view-hint').text(T.viewHint);
+    d3.select('#lbl-basin').text(T.basinSelect);
     // 中右与右两组为占位（M2）：参数默认浊度、时间范围默认近一年（D-46）；时间序列就绪后由 ts.js 的 controls() 接管。
     // 作者 10-01 发现：本函数在每次形变结束都会调用，原先不论就绪与否都写占位——参数下拉被重置成只剩 Turbidity、
     // 时间范围按钮退回「近一年」（自 09-24 起）。改为只在未就绪时写占位
@@ -570,7 +572,6 @@
   }
   function updateSidebar() {
     const b = state.d.basin;
-    d3.select('#basin-name').text(b.name);
     d3.select('#subtitle').text(T.subtitle);
     if (hooks.sidebar) { emit('sidebar'); return; }   // M2：侧边栏由 stack.js 接管
     d3.select('#sb-title').text(b.name);

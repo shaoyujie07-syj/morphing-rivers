@@ -158,6 +158,8 @@
       const cands = ORDER.filter(c => c !== M.legend);
       // 与图例同一规则（作者 10-01）：优先角落，先避开站点，再避开存根与坝标记，线可以压；四个角都压到可点击对象时沿边滑动
       const avoid = lr ? [[lr[0] - 8, lr[1] - 8, lr[2] + 8, lr[3] + 8]] : [];
+      const ir = R.intro && R.intro.reserved();     // 说明块展开时的矩形（作者 10-04）：收起时也不进入
+      if (ir) avoid.push(ir);
       const { pick: pk, scores, slid } = R.corners.pickPlace(cands, ow, oh, ob, avoid);
       M.corner = pk.c; M.slid = slid; M.key = key; M.scores = Object.fromEntries(scores.map(s => [s.c, s.n]));
     }

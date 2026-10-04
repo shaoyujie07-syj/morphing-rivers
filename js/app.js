@@ -51,8 +51,13 @@
   // 水面画在背景河网之上、河道之下（作者 09-24：灰色背景河段不得盖住湖面）
   // M2 插入三层，M1 的 z 序不变：hl（路径高亮，河道与存根之上）、halo（悬停光晕，设施之下）、rings（栈内圆环，站点之上）
   // M3+M4 增补：towns（地图城镇，地理背景角色）在水面之上、河道之下
-  for (const k of ['bg', 'bgRivers', 'water', 'towns', 'pieces', 'stubs', 'hl', 'ratio', 'outlet', 'halo', 'fac', 'arrows', 'stations',
-    'rings', 'labels', 'mapLabels']) layer[k] = root.append('g').attr('class', 'layer-' + k);
+  // 作者 10-04（F10，只动明度不动色相）：问题在等明度——河网 L* 44.9 与交互蓝 46.0，对比度 1.04:1。
+  //   hl 移到河网之下：选中的路径不再用交互蓝的线盖住河道，而是在河道下面垫一条浅色光带（河道本色不动）；
+  //   白色的东西集中到一层（stHalos 站点白边、ringWhites 圆环的外白边与内白底），画在坝标记之下——
+  //   顺序为 河网 → 所有白边与白底 → 坝标记 → 环 → 站点（当初不画内白边是怕盖住坝标记，那是图层顺序问题）
+  // 作者 10-05（Q-25）：路径高亮改为套边，hl 层移到水面之后、河网之前——F10 的光带画在水面之下，河道穿过水库时被水面接住（Lake Eppalock）
+  for (const k of ['bg', 'bgRivers', 'water', 'hl', 'towns', 'pieces', 'stubs', 'ratio', 'outlet', 'halo', 'stHalos', 'ringWhites', 'fac', 'arrows',
+    'rings', 'stations', 'labels', 'mapLabels']) layer[k] = root.append('g').attr('class', 'layer-' + k);
 
   const state = { id: null, d: null, view: Q.get('view') === 'schematic' ? 'schematic' : 'map', busy: false,
     fit: { k: 1, ox: 0, oy: 0, cw: W0, ch: H0 }, labels: [] };
@@ -170,8 +175,9 @@
     const arrows = pieces.flatMap(p => p.arrows.map(xy => ({ xy, dir: xy.length >= 4 ? [xy[2], xy[3]] : null, thick: p.w_sch >= 5.5 })));
     layer.arrows.selectAll('path').data(arrows).enter().append('path').attr('class', a => 'flow-arrow' + (a.thick ? ' on-thick' : ''));
 
+    // 站点白边单独一层（stHalos，坝标记之下，作者 10-04 F10）；站点组里只剩站点本身
+    layer.stHalos.selectAll('circle').data(d.stations).enter().append('circle').attr('class', 'st-halo');
     const gs = layer.stations.selectAll('g').data(d.stations).enter().append('g');
-    gs.append('circle').attr('class', 'st-halo');
     gs.append('circle').attr('class', s => s.has_wq ? 'st-wq' : 'st-flow');
 
     layer.mapLabels.selectAll('text').data(d.background.labels_geo.filter(l => l.text)).enter().append('text')
@@ -264,11 +270,13 @@
     });
 
     const halo = lerp(HALO.map, HALO.schematic, t);
+    layer.stHalos.selectAll('circle').each(function (st) {
+      const c = stCenter(st, t);
+      d3.select(this).attr('cx', c[0]).attr('cy', c[1]).attr('r', R_ST + halo);
+    });
     layer.stations.selectAll('g').each(function (st) {
       const c = stCenter(st, t);
-      const g = d3.select(this);
-      g.select('.st-halo').attr('cx', c[0]).attr('cy', c[1]).attr('r', R_ST + halo);
-      g.select(':nth-child(2)').attr('cx', c[0]).attr('cy', c[1]).attr('r', st.has_wq ? R_ST : R_ST - 0.75);
+      d3.select(this).select('.st-wq, .st-flow').attr('cx', c[0]).attr('cy', c[1]).attr('r', st.has_wq ? R_ST : R_ST - 0.75);
     });
 
     layer.labels.attr('opacity', s.schA).attr('display', s.schA > 0 ? null : 'none');

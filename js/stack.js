@@ -438,13 +438,17 @@
   function drawRings() {
     const s = R.state;
     if (!s.frame || !I()) return;
-    const L = R.layer.rings;
+    const L = R.layer.rings, Wh = R.layer.ringWhites;
     L.selectAll('*').remove();
+    Wh.selectAll('*').remove();
     // 验收修订 10-01：圆环外侧加一圈 1.5 px 白边，交互蓝画在深蓝干流上也看得清。
-    // 白边只在环外（不盖住环内站点下面的坝标记），并且先画完所有白边再画环（相邻两站的白边不压住别的环）
+    // 作者 10-04（F10）：环内侧也填白（不透明）。蓝贴蓝的那条边界在内侧——环内露出 2.25 px 河道色（环内缘 9.75 − 站点白边 7.5），
+    // 外白边碰不到它；内侧填白后环夹在两道白之间，对内侧 1.04 → 5.19:1。白边与白底都画在坝标记之下（ringWhites 层），
+    // 环画在坝标记之上、站点之下（rings 层），所以环内站点下面的坝标记不会被白底盖住
     const rs = S.ids.map(id => ({ c: R.stCenter(st(id), s.frame.t), w: RING_W }));
-    for (const r of rs) L.append('circle').attr('class', 'ring-halo').attr('cx', r.c[0]).attr('cy', r.c[1])
+    for (const r of rs) Wh.append('circle').attr('class', 'ring-halo').attr('cx', r.c[0]).attr('cy', r.c[1])
       .attr('r', 11 + r.w / 2 + 0.75).attr('stroke-width', 1.5);
+    for (const r of rs) Wh.append('circle').attr('class', 'ring-fill').attr('cx', r.c[0]).attr('cy', r.c[1]).attr('r', 11);
     for (const r of rs) L.append('circle').attr('class', 'ring').attr('cx', r.c[0]).attr('cy', r.c[1]).attr('r', 11).attr('stroke-width', r.w);
   }
   R.on('draw', drawRings);

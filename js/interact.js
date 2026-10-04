@@ -246,24 +246,44 @@
       return out;
     };
     const cls = x => x.sel ? 'hl-line hl-sel' : 'hl-line hl-hover';
+    // 作者 10-05（Q-25）：路径高亮为「套边」——河道本色不动，在河道之下垫两层：交互蓝（线宽 + 6）、其上白色（线宽 + 3），
+    // 即河道两侧各一道 1.5 px 白隙、外侧各一道 1.5 px 交互蓝边；选中蓝边不透明，悬停蓝边 0.5、白隙不透明（.hl-hover）。
+    // 取代 F10 的浅色光带：光带在地图上与水面同属浅蓝且画在水面之下，河道穿过水库时被水面接住、选中路径在湖岸断开。
+    // hl 层在水面之后、河网之前（两个视图同一顺序）；每帧按插值后的几何与线宽重画，形变中不切换画法。
+    // 线宽基准：边与河名画出的河段按该段线宽（地图视图为地图线宽），存根按存根线宽，整条支流与同名背景河段按 1 px
+    const CASE = 6, GAP = 3;
     const L = R.layer.hl;
     L.selectAll('*').remove();
+    const its = [];
     for (const x of both('pieces')) {
       const p = idx.piece.get(x.id);
-      L.append('path').attr('class', cls(x)).attr('d', R.pathOf(R.piecePts(p, t))).attr('stroke-width', R.pieceW(p, t) + 2);
+      its.push({ d: R.pathOf(R.piecePts(p, t)), w: R.pieceW(p, t), sel: x.sel });
     }
     for (const x of both('stubs')) {
       const st = idx.stub.get(x.id);
       const G = R.stubGeom(st, t);
       if (G.len < 0.5) continue;
-      L.append('line').attr('class', cls(x)).attr('x1', G.J[0]).attr('y1', G.J[1]).attr('x2', G.E[0]).attr('y2', G.E[1])
-        .attr('stroke-width', st.w + 2);
+      its.push({ line: [G.J, G.E], w: st.w, sel: x.sel });
     }
+    const draw = (G, it, c, w) => (it.line
+      ? G.append('line').attr('x1', it.line[0][0]).attr('y1', it.line[0][1]).attr('x2', it.line[1][0]).attr('y2', it.line[1][1])
+      : G.append('path').attr('d', it.d)).attr('class', c).attr('stroke-width', w);
+    // 先画全部蓝边，再画全部白隙——逐条画时，相邻两段的蓝边会压住前一段的白隙，在接缝处留下蓝色横线
+    const casing = (G, list) => { for (const it of list) draw(G, it, cls(it), it.w + CASE); for (const it of list) draw(G, it, 'hl-gap', it.w + GAP); };
+    casing(L, its);
     const mapA = s.frame.mapA;
     if (mapA > 0) {
+      const rv = [];
       for (const x of both('rivers')) {
         const r = idx.river.get(x.id);
-        if (r) L.append('path').attr('class', cls(x)).attr('d', R.pathOf(r.d)).attr('stroke-width', 2.4).attr('opacity', mapA);
+        if (r) rv.push({ d: R.pathOf(r.d), w: 1, sel: x.sel, r });
+      }
+      if (rv.length) {
+        const G = L.append('g').attr('opacity', mapA);            // 地图专属，随地图图层淡入淡出
+        casing(G, rv);
+        // 背景河网画在 hl 层之下，白隙会把它盖住：把这几条背景河道按原线宽重画在套边之上（河道本色不动）
+        for (const it of rv) G.append('path').attr('class', 'bg-river').attr('d', it.d)
+          .attr('stroke-width', it.r.strahler >= 5 ? 1.3 : it.r.strahler === 4 ? 1.0 : 0.75);
       }
     }
     // 光晕（规格 §4.2：半径 14、透明度 0.18；选中两端的站用 0.30）。光晕画在站点之下、圆环之下；
@@ -272,8 +292,9 @@
     const Hl = R.layer.halo;
     Hl.selectAll('*').remove();
     const SS = R.stack && R.stack.state;
-    const halo = (c, sel, r = 14) => Hl.append('circle').attr('class', 'halo-c').attr('cx', c[0]).attr('cy', c[1]).attr('r', r)
-      .attr('opacity', sel ? 0.30 : 0.18);
+    // 作者 10-04（F10）：光晕提亮、不染蓝——悬停 #D1E6F1 × 0.85（即现状 0.18 交互蓝叠在白底上的合成色，白底上观感不变，
+    // 河道上 3.51:1）；选中 #B2D5E8 × 0.9（现状 0.30 叠在白底上的合成色，河道上 3.15:1）。颜色与不透明度在 CSS
+    const halo = (c, sel, r = 14) => Hl.append('circle').attr('class', sel ? 'halo-c sel' : 'halo-c hov').attr('cx', c[0]).attr('cy', c[1]).attr('r', r);
     const stHaloR = id => (SS && SS.ids.includes(id) ? 11 + 2.5 / 2 + 0.75 + 0.75 + 4 : 14);   // 栈内：圆环白边外缘 + 4 = 17.75（细环已取消）
     for (const x of both('stations')) halo(R.stCenter(idx.st.get(x.id), t), x.sel, stHaloR(x.id));
     for (const x of both('facs')) halo(R.facGeom(idx.fac.get(x.id), t).c, x.sel);

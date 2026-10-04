@@ -153,6 +153,23 @@
       row_name_w: q('.row .r-name').map(e => r1(e.getBoundingClientRect().width)),
       info_h: q('.info').map(e => r1(e.getBoundingClientRect().height)),
       card_overflow_x: q('.card, .row').filter(e => e.scrollWidth > e.clientWidth + 1).length,
+      // 作者 10-04（F10，只动明度不动色相）：三处的颜色与图层，由 conformance.py 算明度对比度——
+      // 圆环（环色、内白底、外白边）、路径光带（颜色、不透明度、线宽、在河网之下）、光晕（悬停 / 选中的颜色与不透明度）
+      f10: (() => {
+        const css = e => e && getComputedStyle(e);
+        const hx = v => { const m = /rgba?\((\d+),\s*(\d+),\s*(\d+)/.exec(v || ''); return m ? '#' + [m[1], m[2], m[3]].map(x => (+x).toString(16).padStart(2, '0')).join('').toUpperCase() : v; };
+        const ring = document.querySelector('#svg .layer-rings circle.ring'), fill = document.querySelector('#svg .layer-ringWhites circle.ring-fill'),
+          halo = document.querySelector('#svg .layer-ringWhites circle.ring-halo'), piece = document.querySelector('#svg .piece');
+        return { order: [...R.layer.pieces.node().parentNode.children].map(g => g.getAttribute('class')),
+          river: hx(css(piece).stroke), ring: ring && { stroke: hx(css(ring).stroke), r: +ring.getAttribute('r'), w: +ring.getAttribute('stroke-width') },
+          fill: fill && { fill: hx(css(fill).fill), op: +css(fill).opacity, r: +fill.getAttribute('r') }, ring_halo: halo && hx(css(halo).stroke),
+          // 作者 10-05（Q-25）：路径高亮为套边——蓝边（.hl-line）与白隙（.hl-gap）；不透明度连同所在组（地图专属的整条支流组随地图淡入）一起算
+          view: R.state.view, land: hx(css(document.querySelector('#svg .bg-outline')).fill), water: hx(css(document.querySelector('#svg .bg-water')).fill),
+          cases: q('#svg .layer-hl .hl-line').map(e => ({ sel: e.classList.contains('hl-sel'), stroke: hx(css(e).stroke), op: +css(e).opacity * (+(e.parentNode.getAttribute('opacity') ?? 1)), w: +e.getAttribute('stroke-width') })),
+          gaps: q('#svg .layer-hl .hl-gap').map(e => ({ stroke: hx(css(e).stroke), op: +css(e).opacity, w: +e.getAttribute('stroke-width') })),
+          gaps_after_cases: (() => { const k = q('#svg .layer-hl > .hl-line, #svg .layer-hl > .hl-gap').map(e => e.classList.contains('hl-gap') ? 'g' : 'c'); return k.lastIndexOf('c') < k.indexOf('g') || !k.includes('g'); })(),
+          halos: q('#svg .layer-halo circle.halo-c').map(e => ({ sel: e.classList.contains('sel'), fill: hx(css(e).fill), op: +css(e).opacity })) };
+      })(),
       // 作者 10-04（反馈 F8）：四处图表的左右端点（相对侧边栏左缘）——折叠行曲线、行间降雨小柱、展开卡片各层、栈底时间轴；
       // 轴的刻度文字不得伸出轴；栈底自上而下为最后一行、分隔线、轴、Clear
       chart_x: (() => {

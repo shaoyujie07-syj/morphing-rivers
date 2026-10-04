@@ -40,10 +40,11 @@
   const M = 8;                                         // 离画布边 8 px
 
   const sw = (w, h, body) => `<svg class="lg-sym" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${body}</svg>`;
-  // 栈内圆环（与 stack.js 的 drawRings 同一画法）：白边 r = 11 + 环宽/2 + 0.75、宽 1.5，只在环外；下衬粗河道
+  // 栈内圆环（与 stack.js 的 drawRings 同一画法）：外白边 r = 11 + 环宽/2 + 0.75、宽 1.5，环内侧填白（作者 10-04 F10）；下衬粗河道
+  // 作者 10-04（F10）：与画布同一画法与顺序——河道 → 白边与内白底 → 环 → 站点（环内侧填白，环夹在两道白之间）
   const ringSym = w => sw(28, 28, `<line x1="0" y1="14" x2="28" y2="14" stroke="#4A6E8A" stroke-width="9.5"/>`
-    + `<circle cx="14" cy="14" r="7.5" fill="#fff"/><circle class="st-wq" cx="14" cy="14" r="6"/>`
-    + `<circle class="ring-halo" cx="14" cy="14" r="${11 + w / 2 + 0.75}" stroke-width="1.5"/><circle class="ring" cx="14" cy="14" r="11" stroke-width="${w}"/>`);
+    + `<circle cx="14" cy="14" r="7.5" fill="#fff"/><circle class="ring-halo" cx="14" cy="14" r="${11 + w / 2 + 0.75}" stroke-width="1.5"/>`
+    + `<circle class="ring-fill" cx="14" cy="14" r="11"/><circle class="ring" cx="14" cy="14" r="11" stroke-width="${w}"/><circle class="st-wq" cx="14" cy="14" r="6"/>`);
   const tri = (cx, cy, w, h, cls) => `<path class="${cls}" d="M${cx + h / 2},${cy}L${cx - h / 2},${cy - w / 2}L${cx - h / 2},${cy + w / 2}Z"/>`;
   const SYM = {
     wq: sw(16, 16, '<circle cx="8" cy="8" r="7.5" fill="#fff"/><circle class="st-wq" cx="8" cy="8" r="6"/>'),

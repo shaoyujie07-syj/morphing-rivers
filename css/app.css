@@ -452,3 +452,18 @@ body.figure #intro { display: none !important; }
 /* F5（作者 10-04）：侧边栏空栈时的操作提示也用斜体灰字——全页斜体灰字都是操作说明（说明块、视图按钮旁那行同此）；
    上面的概况句是描述，保持正体 */
 .tips { font-style: italic; }
+
+/* ------------------------------------------------------------------ F10（作者 10-04）：只动明度，不动色相 */
+/* 河网 #4A6E8A（L* 44.9）与交互蓝 #0072B2（L* 46.0）等明度、对比度 1.04:1，细线细环靠明度分边缘。两个浅色都取交互蓝叠在白底上的合成色：
+   --hl-sel #B2D5E8 = 现状选中光晕 0.30 的合成色（河道对它 3.49:1），--hl-hover #D1E6F1 = 现状悬停光晕 0.18 的合成色——白底上观感不变 */
+:root { --hl-sel: #B2D5E8; --hl-hover: #D1E6F1; }
+/* 路径高亮（作者 10-05 Q-25，取代 F10 的浅色光带）：套边——交互蓝边（线宽 + 6）之上一道白隙（线宽 + 3），都在河道之下、水面之上；
+   选中蓝边不透明，悬停蓝边 0.5（.hl-hover 沿用）、白隙不透明 */
+.hl-line { stroke: var(--interact); }
+.hl-gap { fill: none; stroke: #fff; stroke-linecap: round; stroke-linejoin: round; }
+/* 光晕：提亮、不染蓝。悬停 × 0.85（河道上 3.51:1），选中 × 0.9（河道上 3.15:1） */
+.halo-c, .halo-c.hov { fill: var(--hl-hover); opacity: .85; }
+.halo-c.sel { fill: var(--hl-sel); opacity: .9; }
+/* 圆环内侧填白（不透明），与外白边同在坝标记之下的 ringWhites 层 */
+.ring-fill { fill: #fff; stroke: none; }
+.layer-stHalos, .layer-ringWhites { pointer-events: none; }

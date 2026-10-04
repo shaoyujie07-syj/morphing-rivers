@@ -435,3 +435,17 @@ body.figure #intro { display: none !important; }
 .grp-basin .ctl { display: flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-aux); color: var(--text-2); }
 /* 斜体灰字 = 操作说明（与说明块的提示一致；正体是描述，作者 10-04） */
 .view-hint { margin-left: var(--sp-1); font-size: var(--fs-aux); font-style: italic; color: var(--text-2); white-space: nowrap; }
+
+/* ------------------------------------------------------------------ 反馈 F6–F8（作者 10-04） */
+/* F6 时间范围菜单：年度一组为灰色小字分组标题（不可选，沿用 .rm-sec）加缩进的纯年份 */
+.range-menu .rm-y { padding-left: 20px; line-height: 15px; }
+.range-menu .rm-years { max-height: 184px; overflow-y: auto; scrollbar-width: thin; }   /* 约 8 行（每行 23 px），其余滚动 */
+/* F7 站号与站名：名在前、号在后（与悬停提示一致）。卡片标题：站名用标题字号加粗，站号降一档为灰色小字；
+   折叠行：站名在上（加粗，放不下截断，悬停给全名）、站号在下（灰色小字）；站号不删，仍是唯一标识 */
+.c-title .c-name { font-weight: 600; }
+.c-title .c-id { flex: none; font-weight: 400; font-size: var(--fs-aux); color: var(--text-2); }
+.r-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.row.nots .r-name span { flex: none; }
+/* F8 栈底：最后一行与公共时间轴之间留空隙，加一条与侧边栏其他分隔线同宽的线；线以下轴在上、Clear 在下靠右 */
+.stack-sep { border-top: 1px solid var(--line); margin: 12px 0 6px; }
+.stack-foot { margin-top: 10px; }

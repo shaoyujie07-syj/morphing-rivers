@@ -164,7 +164,8 @@
     sparseHead: n => n ? `Only ${n} point${n > 1 ? 's' : ''} in this window` : 'No data in this window',
     sparseFive: (s, d) => [s ? `${s} sample${s > 1 ? 's' : ''}` : '', d ? `${d} daily mean${d > 1 ? 's' : ''}` : ''].filter(Boolean).join(' and ') + ' in the last 5 years',
     sparseShow: 'show 5 years', sparseNone: 'none in the last 5 years',
-    rangeWY: y => `Water year ${y}–${String(y + 1).slice(2)}`, rangeWYHead: 'Water year (July to June)', rangeWYPick: 'Choose a water year',
+    // 「water year」不再出现在界面上（作者 10-04，反馈 F6：这个词看不懂）；口径写在分组标题的括号里
+    rangeYear: y => `${y}–${String(y + 1).slice(2)}`, rangeYearBtn: y => `Year ${y}–${String(y + 1).slice(2)}`, rangeYearHead: 'Choose a year (Jul–Jun)',
     rangeDatesHead: 'Custom dates', rangeApply: 'Apply',
     rangeAllNote: 'All records: grab samples go back to their first record; continuous series cover the last 10 years. Drag across any chart for a custom range; double-click to reset.',
     fOtherP: 'Other parameters (this card only)', fQc: p => `Quality codes for ${p} in this window (count)`,
@@ -239,8 +240,8 @@
     },
     ersLine: (p, seg, T_, u, st) => `ERS objective · ${p} · ${seg}: ` + T_.map(t => `${STAT.en[t.stat]} ${OP[t.op]} ${fg(t.v)}`).join(', ') + ` ${u}; `
       + (st.why === 'short' ? 'window shorter than a year, no percentile computed'
-        : st.why === 'few' ? `only ${st.n} data points in ${st.wy != null ? `water year ${st.wy}–${String(st.wy + 1).slice(2)}` : 'the last 12 months of the window'} (fewer than 11), not computed`
-          : (st.wy != null ? `water year ${st.wy}–${String(st.wy + 1).slice(2)}: ` : 'last 12 months of the window: ') + st.res.map(r => `${STAT.en[r.stat]} ${fg(r.x)}`).join(', ') + ` (n = ${st.n}, ${st.src === 'sample' ? 'grab samples' : 'daily means'})`),
+        : st.why === 'few' ? `only ${st.n} data points in ${st.wy != null ? `year ${st.wy}–${String(st.wy + 1).slice(2)}` : 'the last 12 months of the window'} (fewer than 11), not computed`
+          : (st.wy != null ? `year ${st.wy}–${String(st.wy + 1).slice(2)}: ` : 'last 12 months of the window: ') + st.res.map(r => `${STAT.en[r.stat]} ${fg(r.x)}`).join(', ') + ` (n = ${st.n}, ${st.src === 'sample' ? 'grab samples' : 'daily means'})`),
     ersTitle: (seg, region) => `ERS = Victoria's Environment Reference Standard (2021). Segment: ${seg}; applies to: ${region}. Statistics only; no pass/fail judgement.`,
     lgMapTown: 'Town (GeoNames)',
     netClosed: 'Network position and details',
@@ -258,7 +259,7 @@
   Object.assign(window.RIVER_TXT.en.method, {
     ers: ['How: the site is first matched to the ERS segment it falls in (EPA segment map, 2020); the row of objectives is then chosen by the basin the site is registered to. '
       + 'In the Werribee foothills, ERS splits uplands and lowlands at 200 m elevation (site elevation from WMIS); tributaries of the Yarra and Werribee inside '
-      + 'Melbourne\u2019s urban growth boundary use the urban objectives. Statistics use the last 12 months of the current window (the whole water year when one is selected), at least 11 data points, '
+      + 'Melbourne\u2019s urban growth boundary use the urban objectives. Statistics use the last 12 months of the current window (the whole July–June year when one is selected), at least 11 data points, '
       + 'with the percentile ERS specifies.',
       'What it is: the line is a reference only; this chart makes no pass/fail judgement.',
       'Three criteria are our own, not ERS rules: the Melbourne urban growth boundary is used to delimit the urban segment (ERS does not specify which boundary to use); and a site less than 500 m from a '

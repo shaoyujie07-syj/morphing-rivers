@@ -466,11 +466,18 @@
   S.methodLine = methodLine;
   function drawAxis(el) {
     const x = xScale();
-    const svg = d3.select(el).html('').append('svg').attr('class', 'ts-svg ts-axis').attr('width', W + 12).attr('height', 22);
+    // 作者 10-04（反馈 F8）：轴宽与曲线区相同（247 px，原为 + 12 让末端刻度文字伸出去），左右端点与各行曲线严格一致；
+    // 两端的刻度文字若会伸出曲线区，改为向里对齐（左端左对齐、右端右对齐）
+    const svg = d3.select(el).html('').append('svg').attr('class', 'ts-svg ts-axis').attr('width', W).attr('height', 22);
     const g = svg.append('g').attr('transform', 'translate(0,1)');
-    let tv = x.ticks(4);                           // 最多 4 个刻度，放得下 227 px
+    let tv = x.ticks(4);                           // 最多 4 个刻度，放得下 247 px
     while (tv.length > 4) tv = tv.filter((_, i) => i % 2 === 0);
     g.call(d3.axisBottom(x).tickValues(tv).tickSizeOuter(0).tickFormat(d3.timeFormat(tickFmt())));
+    g.selectAll('.tick text').each(function (t) {
+      const w = this.getComputedTextLength(), cx = x(t);
+      if (cx - w / 2 < 0) d3.select(this).attr('text-anchor', 'start').attr('x', -cx);
+      else if (cx + w / 2 > W) d3.select(this).attr('text-anchor', 'end').attr('x', W - cx);
+    });
   }
   function tickFmt() {
     const [t0, t1] = window_();
@@ -646,12 +653,15 @@
     d3.select(psel).selectAll('option').data(avail, p => p).join('option').attr('value', p => p).text(p => pname(p));
     psel.value = S.param;
     const pr = S.range.preset;
-    const lab = pr === 'custom' ? T.rangeCustom : pr === 'wy' ? T.rangeWY(S.range.y) : T.rangeName[pr];
+    const lab = pr === 'custom' ? T.rangeCustom : pr === 'wy' ? T.rangeYearBtn(S.range.y) : T.rangeName[pr];
     rbtn.innerHTML = pr === 'custom' || pr === 'wy' ? `${esc(lab)} · <span class="rr">${esc(T.rangeReset)}</span>` : `${esc(lab)} ▾`;
-    // 菜单：预设 → 按水文年（有数据的年份）→ 自定义日期（两个日期框）；拖选缩放与双击复原照旧（验收修订 10-01）
+    // 菜单：预设 → 选一个年度（7 月至次年 6 月，有数据的年份）→ 自定义日期（两个日期框）；拖选缩放与双击复原照旧（验收修订 10-01）。
+    // 作者 10-04（反馈 F6）：年度改为分组标题加纯年份——标题灰色小字、不可选，口径写在括号里；每项只写年份，界面上不再出现
+    // 「water year」。口径不改成日历年：ERS 目标按 7 月至次年 6 月的年度百分位定义
     menu.html(PRESETS.map(([k]) => `<button data-k="${k}" class="${pr === k ? 'on' : ''}">${esc(T.rangeName[k])}</button>`).join('')
-      + `<div class="rm-sec">${esc(T.rangeWYHead)}</div><div class="rm-row"><select data-rm="wy"><option value="">${esc(T.rangeWYPick)}</option>${
-        wys.map(y => `<option value="${y}"${pr === 'wy' && S.range.y === y ? ' selected' : ''}>${esc(T.rangeWY(y))}</option>`).join('')}</select></div>`
+      // 年份多（Goulburn 浊度人工采样回溯到 1975–76，52 个）：放进约 8 行高的滚动框，选中的年份打开菜单时滚到可见
+      + `<div class="rm-sec">${esc(T.rangeYearHead)}</div><div class="rm-years">${
+        wys.map(y => `<button data-wy="${y}" class="rm-y${pr === 'wy' && S.range.y === y ? ' on' : ''}">${esc(T.rangeYear(y))}</button>`).join('')}</div>`
       + `<div class="rm-sec">${esc(T.rangeDatesHead)}</div><div class="rm-row"><input type="date" data-rm="d0" value="${isoDay(w0)}">`
       + `<span>–</span><input type="date" data-rm="d1" value="${isoDay(w1 - DAY)}"><button data-rm="apply">${esc(T.rangeApply)}</button></div>`
       + `<div class="rm-note">${esc(T.rangeAllNote)}</div>`);
@@ -661,6 +671,8 @@
     if (ev.target.classList.contains('rr')) { setRange({ preset: '1y' }); return; }
     const open = menu.style('display') === 'none';
     menu.style('display', open ? 'block' : 'none');
+    const on = open && menu.select('.rm-years .on').node();
+    if (on) { const box = on.parentNode; box.scrollTop = on.offsetTop - box.offsetTop - box.clientHeight / 2 + on.offsetHeight / 2; }
   });
   menu.on('click', ev => {
     if (ev.target.closest('[data-rm="apply"]')) {
@@ -668,13 +680,12 @@
       if (a && b && b >= a) { menu.style('display', 'none'); setRange({ preset: 'custom', t0: dayMs(a), t1: dayMs(b) + DAY }); }
       return;
     }
+    const y = ev.target.closest('button[data-wy]');
+    if (y) { menu.style('display', 'none'); setRange({ preset: 'wy', y: +y.dataset.wy }); return; }
     const b = ev.target.closest('button[data-k]');
     if (!b) return;
     menu.style('display', 'none');
     setRange({ preset: b.dataset.k });
-  });
-  menu.on('change', ev => {
-    if (ev.target.dataset.rm === 'wy' && ev.target.value) { menu.style('display', 'none'); setRange({ preset: 'wy', y: +ev.target.value }); }
   });
   document.addEventListener('click', ev => { if (!ev.target.closest('.grp-filters')) menu.style('display', 'none'); });
 

@@ -153,6 +153,18 @@
       row_name_w: q('.row .r-name').map(e => r1(e.getBoundingClientRect().width)),
       info_h: q('.info').map(e => r1(e.getBoundingClientRect().height)),
       card_overflow_x: q('.card, .row').filter(e => e.scrollWidth > e.clientWidth + 1).length,
+      // 作者 10-04（反馈 F8）：四处图表的左右端点（相对侧边栏左缘）——折叠行曲线、行间降雨小柱、展开卡片各层、栈底时间轴；
+      // 轴的刻度文字不得伸出轴；栈底自上而下为最后一行、分隔线、轴、Clear
+      chart_x: (() => {
+        const sb = document.getElementById('sidebar').getBoundingClientRect().left;
+        const lr = e => { const b = e.getBoundingClientRect(); return [r1(b.left - sb), r1(b.right - sb)]; };
+        const tb = e => { if (!e) return null; const b = e.getBoundingClientRect(); return [r1(b.top), r1(b.bottom)]; };
+        const last = q('#sb-main .stack > .row, #sb-main .stack > .card').slice(-1)[0];
+        return { rows: q('.row .r-spark svg').map(lr), irain: q('.info-rain svg').map(lr),
+          card: q('.c-chart svg g[data-kind] > rect.ts-bg').map(lr), axis: q('.t-axis svg').map(lr), ticks: q('.t-axis .tick text').map(lr),
+          v: { last: tb(last), sep: tb(document.querySelector('#sb-main .stack-sep')), axis: tb(document.querySelector('.t-axis svg')),
+            clear: tb(document.querySelector('.stack-foot [data-act="clear"]')) } };
+      })(),
       legend: document.body.dataset.legend ? JSON.parse(document.body.dataset.legend) : null,
     };
     const model = R.model && R.model();

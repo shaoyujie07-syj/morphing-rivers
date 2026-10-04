@@ -227,8 +227,8 @@
       + (s.up_sites.length ? cell(esc(T.netLabNew) + ' ' + mbtn(s.id, 'incr'), T.netNew(s.incr_area_km2))
         + cell(esc(T.netLabUp), T.netUp(s.nearest_up.id, s.nearest_up.dist_km)) : cell(esc(T.netLabUp), T.netTop));
     return `<div class="card exp${S.flash.has(s.id) ? ' flash' : ''}" data-id="${esc(s.id)}">
-      <div class="c-title" data-act="collapse" data-id="${esc(s.id)}"><b class="c-id">${esc(s.id)}</b><span class="c-name" title="${esc(s.name)}">${
-        esc(s.short_name || s.name)}</span><span class="c-tags">${tags(s)}</span><button class="x" data-act="remove" data-id="${esc(s.id)}" title="×">×</button></div>
+      <div class="c-title" data-act="collapse" data-id="${esc(s.id)}"><b class="c-name" title="${esc(s.name)}">${
+        esc(s.short_name || s.name)}</b><span class="c-id">${esc(s.id)}</span><span class="c-tags">${tags(s)}</span><button class="x" data-act="remove" data-id="${esc(s.id)}" title="×">×</button></div>
       <div class="c-sum">${esc(summary(s))}</div>
       ${dataArea(s)}
       ${f.open ? `<div class="c-net">${net}<button class="fold-btn open" data-act="fold" data-id="${esc(s.id)}">▾</button></div>`
@@ -244,7 +244,7 @@
     const nots = !s.has_ts || ts.failed;
     const dimmed = ts.ready && !ts.hasParam(s.id, ts.param);
     return `<div class="row${S.flash.has(s.id) ? ' flash' : ''}${nots ? ' nots' : ''}${dimmed ? ' dim' : ''}" data-act="expand" data-id="${esc(s.id)}">
-      <div class="r-name"><b>${esc(s.id)}</b><span title="${esc(s.name)}">${esc(s.short_name || s.name)}</span></div>
+      <div class="r-name"><b title="${esc(s.name)}">${esc(s.short_name || s.name)}</b><span>${esc(s.id)}</span></div>
       ${nots ? '<div class="r-spark none"></div>' : ts.ready ? `<div class="r-spark" data-chart="row" data-id="${esc(s.id)}"></div>`
         : `<div class="r-spark loading">${esc(T.tsLoading)}</div>`}
       <button class="x" data-act="remove" data-id="${esc(s.id)}" title="×">×</button></div>`;
@@ -399,6 +399,9 @@
         rows.push(S.expanded.has(id) ? card(st(id)) : row(st(id)));
       });
       h.push(`<div class="stack">${rows.join('')}</div>`);
+      // 作者 10-04（反馈 F8）：数据区与公共时间轴之间留空隙并画一条分隔线——轴管的是栈里所有的行，不只属于最后一行；
+      // 分隔线以下轴在上、Clear 在下靠右，不并排。轴与各行曲线、行间降雨小柱、卡片各层左右端点一致（同为曲线区 247 px）
+      h.push('<div class="stack-sep"></div>');
       if (ts.ready) h.push('<div class="t-axis" data-chart="axis"></div>');     // 栈底只有刻度（§9）
       h.push(`<div class="stack-foot"><button data-act="clear">${esc(T.btnClear)}</button></div>`);
     }

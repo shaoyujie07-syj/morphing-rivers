@@ -433,4 +433,5 @@ body.figure #svgout { display: none; }
 body.figure #intro { display: none !important; }
 /* 顶部栏：流域下拉带标签（与参数、时间范围同一写法）；视图按钮右边一行小字，比按钮小一档、次要文字色、不换行 */
 .grp-basin .ctl { display: flex; align-items: center; gap: var(--sp-1); font-size: var(--fs-aux); color: var(--text-2); }
-.view-hint { margin-left: var(--sp-1); font-size: var(--fs-aux); color: var(--text-2); white-space: nowrap; }
+/* 斜体灰字 = 操作说明（与说明块的提示一致；正体是描述，作者 10-04） */
+.view-hint { margin-left: var(--sp-1); font-size: var(--fs-aux); font-style: italic; color: var(--text-2); white-space: nowrap; }

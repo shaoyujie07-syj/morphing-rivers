@@ -449,3 +449,6 @@ body.figure #intro { display: none !important; }
 /* F8 栈底：最后一行与公共时间轴之间留空隙，加一条与侧边栏其他分隔线同宽的线；线以下轴在上、Clear 在下靠右 */
 .stack-sep { border-top: 1px solid var(--line); margin: 12px 0 6px; }
 .stack-foot { margin-top: 10px; }
+/* F5（作者 10-04）：侧边栏空栈时的操作提示也用斜体灰字——全页斜体灰字都是操作说明（说明块、视图按钮旁那行同此）；
+   上面的概况句是描述，保持正体 */
+.tips { font-style: italic; }
